@@ -14,6 +14,7 @@ export function MotorCards({
   moveMotorCard,
   probeMotor,
   zeroMotor,
+  refreshMotorState,
 }) {
   const { t } = useI18n();
   const onDragStart = (e, key) => {
@@ -91,6 +92,16 @@ export function MotorCards({
             <div className="motorMeta"><strong>{t('updated')}</strong> {formatLocal(hit.updated_at_ms)}</div>
             <div className="motorMeta"><strong>{t('last_check')}</strong> {formatLocal(hit.last_check_ms)}</div>
             <div className="row compactToolbar">
+              <button
+                className="small ghostBtn"
+                disabled={!connected}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  refreshMotorState(hit);
+                }}
+              >
+                {t('refresh_state')}
+              </button>
               <button
                 className="small ghostBtn"
                 disabled={!connected}

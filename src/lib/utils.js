@@ -17,6 +17,10 @@ export function toHex(n) {
   return `0x${Number(n).toString(16).toUpperCase()}`;
 }
 
+export function getResponseValue(ret) {
+  return ret?.data?.value ?? ret?.value ?? ret?.data?.result?.value ?? ret?.result?.value;
+}
+
 export function motorKey(h) {
   return `${h.vendor}:${h.esc_id}:${h.mst_id}`;
 }

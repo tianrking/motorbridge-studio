@@ -1,5 +1,6 @@
 import {
   defaultControlsForHit,
+  getResponseValue,
   mergeHitsByVendor,
   motorKey,
   normalizeHits,
@@ -7,11 +8,18 @@ import {
   toHex,
 } from './utils';
 import { SET_ID_VENDORS } from './constants';
-import { CMD_TIMEOUTS } from './appConfig';
+import { CMD_TIMEOUTS, DAMIAO_REGISTER_SNAPSHOT_FIELDS, DAMIAO_RW_REGISTER_DEFS } from './appConfig';
 import { buildProbePayload, buildSetIdPayload } from './vendors';
 import { REBOT_ARM_JOINT_LIMITS } from './robotArm';
 
 const lastMitSentAtByMotor = new Map();
+const DAMIAO_REFRESH_REGISTERS = Object.freeze(
+  DAMIAO_RW_REGISTER_DEFS.filter((def) => def.common).map((def) => ({
+    rid: def.rid,
+    key: DAMIAO_REGISTER_SNAPSHOT_FIELDS[def.rid],
+    dataType: def.dataType,
+  })),
+);
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -280,6 +288,23 @@ export async function refreshMotorStateOp({ h, vendors, setTargetFor, sendCmd, s
 
     const d = ret.data || {};
     const flags = d.flags && typeof d.flags === 'object' ? d.flags : undefined;
+    const damiaoParamPatch = {};
+
+    if (String(h.vendor) === 'damiao') {
+      for (const def of DAMIAO_REFRESH_REGISTERS) {
+        try {
+          const op = def.dataType === 'u32' ? 'get_register_u32' : 'get_register_f32';
+          const regRet = await sendCmd(op, { rid: def.rid, timeout_ms: 1000 }, CMD_TIMEOUTS.registerMs);
+          if (!regRet?.ok) continue;
+          const rawValue = getResponseValue(regRet);
+          const value = Number(rawValue ?? Number.NaN);
+          damiaoParamPatch[def.key] = Number.isFinite(value) ? value : rawValue;
+        } catch {
+          // Keep refresh resilient: runtime state should still update even if one register read fails.
+        }
+      }
+    }
+
     setHits((prev) =>
       mergeHitsByVendor(prev, [
         {
@@ -297,6 +322,7 @@ export async function refreshMotorStateOp({ h, vendors, setTargetFor, sendCmd, s
           device_id: Number(d.device_id ?? h.device_id ?? Number.NaN),
           motor_id: Number(d.motor_id ?? h.motor_id ?? Number.NaN),
           flags: flags ?? h.flags,
+          ...damiaoParamPatch,
           online: true,
           last_check_ms: Date.now(),
           updated_at_ms: Date.now(),
@@ -304,7 +330,7 @@ export async function refreshMotorStateOp({ h, vendors, setTargetFor, sendCmd, s
       ]),
     );
 
-    pushLog(`state refreshed ${h.vendor} ${toHex(h.esc_id)}`, 'ok');
+    pushLog(`state refreshed ${h.vendor} ${toHex(h.esc_id)}${String(h.vendor) === 'damiao' ? ' + params' : ''}`, 'ok');
   } catch (e) {
     setHits((prev) =>
       mergeHitsByVendor(prev, [

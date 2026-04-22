@@ -105,6 +105,7 @@ export function MotorSection() {
               moveMotorCard={moveMotorCard}
               probeMotor={probeMotor}
               zeroMotor={zeroMotor}
+              refreshMotorState={refreshMotorState}
             />
 
             <div className="motorPanel">

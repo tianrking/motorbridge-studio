@@ -1,4 +1,5 @@
-import { defaultControlsForHit, motorKey, toHex } from '../lib/utils';
+import { defaultControlsForHit, getResponseValue, mergeHitsByVendor, motorKey, toHex } from '../lib/utils';
+import { DAMIAO_REGISTER_SNAPSHOT_FIELDS } from '../lib/appConfig';
 import {
   controlMotorOp,
   probeMotorOp,
@@ -22,6 +23,21 @@ export function useMotorControl({
 }) {
   const patchControl = (k, patch) => {
     setControls((prev) => ({ ...prev, [k]: { ...(prev[k] || {}), ...patch } }));
+  };
+
+  const syncDamiaoRegisterSnapshot = (h, rid, value) => {
+    if (String(h?.vendor) !== 'damiao') return;
+
+    const field = DAMIAO_REGISTER_SNAPSHOT_FIELDS[Number(rid)];
+    if (!field) return;
+
+    const num = Number(value);
+    const patch = {
+      updated_at_ms: Date.now(),
+      [field]: Number.isFinite(num) ? num : value,
+    };
+
+    setHits((prev) => mergeHitsByVendor(prev, [{ ...h, ...patch }]));
   };
 
   const verifyHit = (h) =>
@@ -94,6 +110,12 @@ export function useMotorControl({
       }
       const ret = await sendCmd(op, payload, timeoutMs);
       if (!ret?.ok) throw new Error(ret?.error || `${op} failed`);
+      if (op === 'get_register_u32' || op === 'get_register_f32') {
+        syncDamiaoRegisterSnapshot(h, payload?.rid, getResponseValue(ret));
+      }
+      if (op === 'write_register_u32' || op === 'write_register_f32') {
+        syncDamiaoRegisterSnapshot(h, payload?.rid, payload?.value);
+      }
       pushLog(`${op} ${h.vendor} ${toHex(h.esc_id)} ok`, 'ok');
       return ret;
     } catch (e) {

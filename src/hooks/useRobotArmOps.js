@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { bulkOp, sleep } from '../lib/async';
-import { DAMIAO_CTRL_PARAM_RID } from '../lib/appConfig';
-import { defaultControlsForHit, motorKey } from '../lib/utils';
+import { DAMIAO_ARM_PARAM_DEFS } from '../lib/appConfig';
+import { defaultControlsForHit, getResponseValue, motorKey } from '../lib/utils';
 import { useRobotArmStudio } from './useRobotArmStudio';
 
 export function useRobotArmOps({
@@ -65,6 +65,9 @@ export function useRobotArmOps({
     }
   };
 
+  const readDefs = DAMIAO_ARM_PARAM_DEFS;
+  const writeDefs = DAMIAO_ARM_PARAM_DEFS.filter((x) => x.writable !== false);
+
   const readDamiaoControlParams = async (h, timeoutMs = 1000, { closeBusAfter = true } = {}) => {
     if (!h || String(h.vendor) !== 'damiao') {
       throw new Error('read control params is damiao-only');
@@ -72,49 +75,14 @@ export function useRobotArmOps({
 
     await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
     try {
-      const ctrlModeRet = await sendCmd(
-        'get_register_u32',
-        { rid: DAMIAO_CTRL_PARAM_RID.ctrlMode, timeout_ms: timeoutMs },
-        3000
-      );
-      const currentBwRet = await sendCmd(
-        'get_register_f32',
-        { rid: DAMIAO_CTRL_PARAM_RID.currentBw, timeout_ms: timeoutMs },
-        3000
-      );
-      const velKpRet = await sendCmd(
-        'get_register_f32',
-        { rid: DAMIAO_CTRL_PARAM_RID.velKp, timeout_ms: timeoutMs },
-        3000
-      );
-      const velKiRet = await sendCmd(
-        'get_register_f32',
-        { rid: DAMIAO_CTRL_PARAM_RID.velKi, timeout_ms: timeoutMs },
-        3000
-      );
-      const posKpRet = await sendCmd(
-        'get_register_f32',
-        { rid: DAMIAO_CTRL_PARAM_RID.posKp, timeout_ms: timeoutMs },
-        3000
-      );
-      const posKiRet = await sendCmd(
-        'get_register_f32',
-        { rid: DAMIAO_CTRL_PARAM_RID.posKi, timeout_ms: timeoutMs },
-        3000
-      );
-
-      const all = [ctrlModeRet, currentBwRet, velKpRet, velKiRet, posKpRet, posKiRet];
-      const failed = all.find((x) => !x?.ok);
-      if (failed) throw new Error(failed.error || 'read register failed');
-
-      return {
-        ctrlMode: Number(ctrlModeRet.data?.value ?? Number.NaN),
-        currentBw: Number(currentBwRet.data?.value ?? Number.NaN),
-        velKp: Number(velKpRet.data?.value ?? Number.NaN),
-        velKi: Number(velKiRet.data?.value ?? Number.NaN),
-        posKp: Number(posKpRet.data?.value ?? Number.NaN),
-        posKi: Number(posKiRet.data?.value ?? Number.NaN),
-      };
+      const values = {};
+      for (const def of readDefs) {
+        const op = def.dataType === 'u32' ? 'get_register_u32' : 'get_register_f32';
+        const ret = await sendCmd(op, { rid: def.rid, timeout_ms: timeoutMs }, 3000);
+        if (!ret?.ok) throw new Error(`${def.variable}: ${ret?.error || 'read register failed'}`);
+        values[def.key] = Number(getResponseValue(ret) ?? Number.NaN);
+      }
+      return values;
     } finally {
       if (closeBusAfter) await closeBusQuietly();
     }
@@ -130,23 +98,14 @@ export function useRobotArmOps({
     }
     await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
     try {
-      const seq = [
-        [
-          'write_register_u32',
-          { rid: DAMIAO_CTRL_PARAM_RID.ctrlMode, value: Number(values.ctrlMode) },
-        ],
-        [
-          'write_register_f32',
-          { rid: DAMIAO_CTRL_PARAM_RID.currentBw, value: Number(values.currentBw) },
-        ],
-        ['write_register_f32', { rid: DAMIAO_CTRL_PARAM_RID.velKp, value: Number(values.velKp) }],
-        ['write_register_f32', { rid: DAMIAO_CTRL_PARAM_RID.velKi, value: Number(values.velKi) }],
-        ['write_register_f32', { rid: DAMIAO_CTRL_PARAM_RID.posKp, value: Number(values.posKp) }],
-        ['write_register_f32', { rid: DAMIAO_CTRL_PARAM_RID.posKi, value: Number(values.posKi) }],
-      ];
-
-      for (const [op, payload] of seq) {
-        const ret = await sendCmd(op, payload, 3000);
+      for (const def of writeDefs) {
+        if (!(def.key in values)) continue;
+        const op = def.dataType === 'u32' ? 'write_register_u32' : 'write_register_f32';
+        const value =
+          def.dataType === 'u32'
+            ? Math.round(Number(values[def.key]) || 0)
+            : Number(values[def.key]) || 0;
+        const ret = await sendCmd(op, { rid: def.rid, value }, 3000);
         if (!ret?.ok) throw new Error(ret?.error || `${op} failed`);
       }
 
@@ -225,7 +184,12 @@ export function useRobotArmOps({
       for (let i = 0; i < rows.length; i += 1) {
         const row = rows[i];
         try {
-          await writeDamiaoControlParams(row.hit, row.values, {
+          const writeValues = Object.fromEntries(
+            writeDefs
+              .filter((def) => row?.values && Object.prototype.hasOwnProperty.call(row.values, def.key))
+              .map((def) => [def.key, row.values[def.key]]),
+          );
+          await writeDamiaoControlParams(row.hit, writeValues, {
             store: true,
             closeBusAfter: false,
           });

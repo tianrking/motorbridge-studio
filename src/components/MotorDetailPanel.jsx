@@ -1,7 +1,7 @@
 import React from 'react';
 import { DAMIAO_RW_REGISTER_DEFS } from '../lib/appConfig';
 import { SET_ID_VENDORS, VENDOR_LABELS } from '../lib/constants';
-import { formatLocal, motorKey, toHex } from '../lib/utils';
+import { formatLocal, getResponseValue, motorKey, toHex } from '../lib/utils';
 import { useI18n } from '../i18n';
 
 function ModeSelect({ vendor, value, onChange }) {
@@ -326,7 +326,7 @@ export function MotorDetailPanel({
                     runOp(async () => {
                       const op = regType === 'u32' ? 'get_register_u32' : 'get_register_f32';
                       const ret = await runMotorOp(activeMotor, op, { rid: Number(rid) || 0, timeout_ms: 1000 });
-                      setRegReadValue(String(ret?.data?.value ?? ''));
+                      setRegReadValue(String(getResponseValue(ret) ?? ''));
                     })
                   }
                 >
@@ -380,7 +380,7 @@ export function MotorDetailPanel({
                         param_type: rsParamType,
                         timeout_ms: 200,
                       });
-                      setRsReadValue(String(ret?.data?.value ?? ''));
+                      setRsReadValue(String(getResponseValue(ret) ?? ''));
                     })
                   }
                 >

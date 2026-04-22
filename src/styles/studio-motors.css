@@ -200,6 +200,16 @@
   font-size: 11px;
 }
 
+.motorCard .compactToolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.motorCard .compactToolbar .small {
+  width: 100%;
+}
+
 .motorAdvancedPanel {
   margin-top: 10px;
   border: 1px dashed #c8d7fb;
