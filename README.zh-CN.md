@@ -1,6 +1,6 @@
-# MotorBridge Assistant（factory_calib_ui_ws，React 版）
+# MotorBridge Studio
 
-基于 WebSocket 的工厂上位机（纯前端）。
+基于 WebSocket 的电机控制 Studio 上位机（纯前端）。
 
 - 前端：React + Vite
 - 后端：`ws_gateway`
@@ -10,7 +10,7 @@
 
 ```bash
 pip install -U motorbridge
-cd tools/factory_calib_ui_ws
+cd motorbridge-studio
 npm install
 ```
 
@@ -117,7 +117,7 @@ motorbridge-gateway -- `
 ## 3）启动前端
 
 ```bash
-cd tools/factory_calib_ui_ws
+cd motorbridge-studio
 npm run dev
 ```
 

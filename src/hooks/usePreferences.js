@@ -1,6 +1,6 @@
 import { usePersistedState } from './usePersistedState';
 
-const LS_UI_PREFS_KEY = 'factory_calib_ui_ws_ui_prefs_v1';
+const LS_UI_PREFS_KEY = 'motorbridge_studio_ui_prefs_v1';
 
 export const DEFAULT_UI_PREFS = {
   sectionConnectionCollapsed: false,

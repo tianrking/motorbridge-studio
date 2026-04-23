@@ -11,7 +11,7 @@ import {
 } from '../lib/robotArm';
 import { usePersistedState } from './usePersistedState';
 
-const LS_ROBOT_ARM_MODEL_KEY = 'factory_calib_ui_ws_robot_arm_model_v1';
+const LS_ROBOT_ARM_MODEL_KEY = 'motorbridge_studio_robot_arm_model_v1';
 
 function normalizeControlForHit(hit, rawControl) {
   const defaults = defaultControlsForHit(hit);

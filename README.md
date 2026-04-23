@@ -1,6 +1,6 @@
-# MotorBridge Assistant (factory_calib_ui_ws, React)
+# MotorBridge Studio
 
-WebSocket-based factory control UI (frontend only).
+WebSocket-based motor control studio UI (frontend only).
 
 - Frontend: React + Vite
 - Backend: `ws_gateway`
@@ -10,7 +10,7 @@ WebSocket-based factory control UI (frontend only).
 
 ```bash
 pip install -U motorbridge
-cd tools/factory_calib_ui_ws
+cd motorbridge-studio
 npm install
 ```
 
@@ -110,7 +110,7 @@ motorbridge-gateway -- `
 ## 3) Start Frontend
 
 ```bash
-cd tools/factory_calib_ui_ws
+cd motorbridge-studio
 npm run dev
 ```
 

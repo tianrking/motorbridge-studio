@@ -3,7 +3,7 @@ import { en } from './messages/en';
 import { zh } from './messages/zh';
 import { es } from './messages/es';
 
-const LS_LOCALE_KEY = 'factory_calib_ui_ws_locale_v1';
+const LS_LOCALE_KEY = 'motorbridge_studio_locale_v1';
 const LOCALES = ['en', 'zh', 'es'];
 const messages = { en, zh, es };
 

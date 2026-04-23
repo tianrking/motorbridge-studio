@@ -1,5 +1,5 @@
 export const es = {
-  app_title: 'MotorBridge Assistant',
+  app_title: 'MotorBridge Studio',
   app_subtitle: 'Consola de control con Rust WS Gateway',
   quick_menu: 'Menú rápido',
   language: 'Idioma',

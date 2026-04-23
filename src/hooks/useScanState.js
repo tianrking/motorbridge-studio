@@ -55,9 +55,9 @@ export function useScanState({
     setActiveMotorKey('');
     try {
       if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('factory_calib_ui_ws_hits_v1');
-        window.localStorage.removeItem('factory_calib_ui_ws_controls_v1');
-        window.localStorage.removeItem('factory_calib_ui_ws_active_motor_v1');
+    window.localStorage.removeItem('motorbridge_studio_hits_v1');
+    window.localStorage.removeItem('motorbridge_studio_controls_v1');
+    window.localStorage.removeItem('motorbridge_studio_active_motor_v1');
       }
     } catch {
       // ignore localStorage failures

@@ -1,5 +1,5 @@
 export const zh = {
-  app_title: 'MotorBridge Assistant',
+  app_title: 'MotorBridge Studio',
   app_subtitle: '基于 Rust WS Gateway 的控制台',
   quick_menu: '快捷菜单',
   language: '语言',

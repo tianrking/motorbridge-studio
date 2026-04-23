@@ -1,4 +1,4 @@
-# factory_calib_ui_ws TODO
+# motorbridge-studio TODO
 
 > 当前阶段：仅记录待办，不立即实施重构。
 

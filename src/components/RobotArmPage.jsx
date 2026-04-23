@@ -113,7 +113,7 @@ export function RobotArmPage() {
   const [urdfImportedTrail, setUrdfImportedTrail] = React.useState(null);
   const [urdfImportInfo, setUrdfImportInfo] = React.useState('');
   const [urdfSeqLibrary, setUrdfSeqLibrary] = usePersistedState(
-    'factory_calib_ui_ws_arm_seq_library_v1',
+    'motorbridge_studio_arm_seq_library_v1',
     [],
     (cached) => (Array.isArray(cached) ? cached.filter((x) => x && Array.isArray(x.points) && x.points.length >= 2) : []),
   );

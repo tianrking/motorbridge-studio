@@ -8,9 +8,9 @@ import { useScanState } from './useScanState';
 import { useMotorControl } from './useMotorControl';
 import { useRobotArmOps } from './useRobotArmOps';
 
-const LS_HITS_KEY = 'factory_calib_ui_ws_hits_v1';
-const LS_CONTROLS_KEY = 'factory_calib_ui_ws_controls_v1';
-const LS_ACTIVE_MOTOR_KEY = 'factory_calib_ui_ws_active_motor_v1';
+const LS_HITS_KEY = 'motorbridge_studio_hits_v1';
+const LS_CONTROLS_KEY = 'motorbridge_studio_controls_v1';
+const LS_ACTIVE_MOTOR_KEY = 'motorbridge_studio_active_motor_v1';
 
 export function useMotorStudio() {
   const { t } = useI18n();
