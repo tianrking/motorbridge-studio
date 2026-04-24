@@ -332,25 +332,22 @@ export async function refreshMotorStateOp({ h, vendors, setTargetFor, sendCmd, s
       }
     }
 
-    setHits((prev) =>
-      mergeHitsByVendor(prev, [
-        mapResponseToHit(h, ret.data, damiaoParamPatch),
-      ]),
-    );
+    const nextHit = mapResponseToHit(h, ret.data, damiaoParamPatch);
+    setHits((prev) => mergeHitsByVendor(prev, [nextHit]));
 
     pushLog(`state refreshed ${h.vendor} ${toHex(h.esc_id)}${String(h.vendor) === 'damiao' ? ' + params' : ''}`, 'ok');
+    return nextHit;
   } catch (e) {
-    setHits((prev) =>
-      mergeHitsByVendor(prev, [
-        {
-          ...h,
-          online: false,
-          last_check_ms: Date.now(),
-          updated_at_ms: Date.now(),
-        },
-      ]),
-    );
+    const nextHit = {
+      ...h,
+      pos: Number.NaN,
+      online: false,
+      last_check_ms: Date.now(),
+      updated_at_ms: Date.now(),
+    };
+    setHits((prev) => mergeHitsByVendor(prev, [nextHit]));
     pushLog(`state refresh failed: ${e.message || e}`, 'err');
+    return nextHit;
   }
 }
 

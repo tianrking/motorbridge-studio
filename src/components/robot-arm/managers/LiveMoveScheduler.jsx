@@ -9,6 +9,7 @@ export function LiveMoveScheduler({
   connected,
   armBulkBusy,
   controlMotor,
+  refreshMotorState,
   patchControl,
   setLimitWarn,
   showLimitToast,
@@ -18,6 +19,7 @@ export function LiveMoveScheduler({
   const { t } = useI18n();
   const liveMoveTimerRef = React.useRef(null);
   const pendingLiveMoveRef = React.useRef(null);
+  const moveSeqRef = React.useRef(0);
 
   React.useEffect(() => () => {
     if (liveMoveTimerRef.current) clearTimeout(liveMoveTimerRef.current);
@@ -48,9 +50,11 @@ export function LiveMoveScheduler({
       if (String(row?.control?.mode) === 'mit') return;
       const hit = row?.hit;
       if (!hit) return;
-      pendingLiveMoveRef.current = { row, targetText };
+      const seq = moveSeqRef.current + 1;
+      moveSeqRef.current = seq;
+      pendingLiveMoveRef.current = { row, targetText, previousTarget: row?.control?.target, seq };
       if (liveMoveTimerRef.current) return;
-      liveMoveTimerRef.current = setTimeout(() => {
+      liveMoveTimerRef.current = setTimeout(async () => {
         liveMoveTimerRef.current = null;
         const pending = pendingLiveMoveRef.current;
         if (!pending) return;
@@ -69,10 +73,32 @@ export function LiveMoveScheduler({
         } else {
           setLimitWarn('');
         }
-        controlMotor(pending.row.hit, 'move', { target: checked.clamped });
+        const ok = await controlMotor(pending.row.hit, 'move', { target: checked.clamped });
+        if (ok || pending.seq !== moveSeqRef.current) return;
+
+        const refreshed = typeof refreshMotorState === 'function'
+          ? await refreshMotorState(pending.row.hit)
+          : null;
+        const actualPos = Number(refreshed?.pos);
+        const fallbackTarget = Number.isFinite(actualPos) ? actualPos : pending.previousTarget;
+        patchControl(pending.row.key, { target: fallbackTarget });
+        const msg = t('arm_live_move_failed');
+        setLimitWarn(msg);
+        showLimitToast(msg);
       }, 80);
     },
-    [armBulkBusy, clampTargetForRow, connected, controlMotor, liveMove, patchControl, setLimitWarn, showLimitToast, t],
+    [
+      armBulkBusy,
+      clampTargetForRow,
+      connected,
+      controlMotor,
+      liveMove,
+      patchControl,
+      refreshMotorState,
+      setLimitWarn,
+      showLimitToast,
+      t,
+    ],
   );
 
   const onSliderTargetChange = React.useCallback(

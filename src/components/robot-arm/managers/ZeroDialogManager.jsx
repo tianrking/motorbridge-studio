@@ -24,6 +24,7 @@ export function ZeroDialogManager({
   });
   const zeroConfirmResolverRef = React.useRef(null);
   const rowsRef = React.useRef(robotArmJointRows);
+  const zeroCheckBusyRef = React.useRef(false);
 
   React.useEffect(() => {
     rowsRef.current = robotArmJointRows;
@@ -78,18 +79,24 @@ export function ZeroDialogManager({
   }, []);
 
   const onZeroAllSafe = React.useCallback(async () => {
-    if (zeroCheckBusy) return;
+    if (zeroCheckBusyRef.current) return;
+    zeroCheckBusyRef.current = true;
     setZeroCheckBusy(true);
     try {
       const preRows = rowsRef.current || [];
+      const refreshedRows = [];
       for (const row of preRows) {
-        if (!row?.hit) continue;
-        await refreshMotorState(row.hit);
+        if (!row?.hit) {
+          refreshedRows.push(row);
+          continue;
+        }
+        const refreshedHit = await refreshMotorState(row.hit);
+        refreshedRows.push({ ...row, hit: refreshedHit || { ...row.hit, pos: Number.NaN, online: false } });
         await sleep(20);
       }
       await sleep(80);
 
-      const freshSafety = computeZeroSafety(rowsRef.current || []);
+      const freshSafety = computeZeroSafety(refreshedRows);
       if (!freshSafety.ok) {
         const short = freshSafety.notReady
           .slice(0, 4)
@@ -121,6 +128,7 @@ export function ZeroDialogManager({
       if (!c2) return;
       await zeroAllRobotArm();
     } finally {
+      zeroCheckBusyRef.current = false;
       setZeroCheckBusy(false);
     }
   }, [
@@ -131,7 +139,6 @@ export function ZeroDialogManager({
     showLimitToast,
     t,
     zeroAllRobotArm,
-    zeroCheckBusy,
   ]);
 
   return (

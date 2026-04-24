@@ -27,6 +27,14 @@ export function SequenceManager({
   const { t } = useI18n();
   const [demoAction, setDemoAction] = React.useState('safe_seq');
   const [demoBusy, setDemoBusy] = React.useState(false);
+  const demoBusyRef = React.useRef(false);
+  const demoAbortRef = React.useRef({ cancelled: false });
+
+  React.useEffect(() => {
+    return () => {
+      demoAbortRef.current.cancelled = true;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!demoToast.visible || demoBusy) return undefined;
@@ -46,8 +54,21 @@ export function SequenceManager({
     }));
   }, [setDemoToast]);
 
+  const stopDemo = React.useCallback(() => {
+    demoAbortRef.current.cancelled = true;
+    showDemoToast('warn', t('arm_demo_stopped'));
+  }, [showDemoToast, t]);
+
+  const throwIfStopped = React.useCallback(() => {
+    if (demoAbortRef.current.cancelled) {
+      throw new Error('demo stopped');
+    }
+  }, []);
+
   const runDemo = React.useCallback(async () => {
-    if (demoBusy) return;
+    if (demoBusyRef.current) return;
+    demoBusyRef.current = true;
+    demoAbortRef.current = { cancelled: false };
 
     const getOnlineRows = () => {
       const rows = rowsRef.current || [];
@@ -59,9 +80,13 @@ export function SequenceManager({
     try {
       if (demoAction === 'safe_seq_scan') {
         showDemoToast('info', t('arm_demo_running', { name: t('arm_demo_safe_seq_scan') }), t('arm_demo_scan'));
+        throwIfStopped();
         await scanRobotArmAll();
+        throwIfStopped();
         await sleep(120);
+        throwIfStopped();
         await enableAllRobotArm();
+        throwIfStopped();
       }
 
       const onlineRows = getOnlineRows();
@@ -90,6 +115,7 @@ export function SequenceManager({
       let okCount = 0;
       const demoName = demoAction === 'safe_seq_scan' ? t('arm_demo_safe_seq_scan') : t('arm_demo_safe_seq');
       for (const step of namedSeq) {
+        throwIfStopped();
         const lim = jointLimit(step.row.joint, limits);
         const target = clampByLimit(Number(step.target), lim);
         const mode = armPreferredMode();
@@ -109,8 +135,10 @@ export function SequenceManager({
           mode,
           target,
         });
+        throwIfStopped();
         if (ok) okCount += 1;
         await sleep(300);
+        throwIfStopped();
       }
 
       showDemoToast(
@@ -119,15 +147,20 @@ export function SequenceManager({
         t('arm_demo_result', { ok: okCount, total: namedSeq.length }),
       );
     } catch (e) {
+      if (e?.message === 'demo stopped') {
+        showDemoToast('warn', t('arm_demo_stopped'));
+        return;
+      }
       showDemoToast('warn', t('arm_demo_failed'), e?.message || String(e));
     } finally {
+      demoBusyRef.current = false;
       setDemoBusy(false);
     }
   }, [
     controlMotor,
     demoAction,
-    demoBusy,
     enableAllRobotArm,
+    throwIfStopped,
     limits,
     patchControl,
     rowsRef,
@@ -136,5 +169,5 @@ export function SequenceManager({
     t,
   ]);
 
-  return children({ demoAction, setDemoAction, demoBusy, runDemo });
+  return children({ demoAction, setDemoAction, demoBusy, runDemo, stopDemo });
 }

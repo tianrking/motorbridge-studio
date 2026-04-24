@@ -64,8 +64,10 @@ function RobotArmToolbar({
   applyDefaultTemplate,
   paramPanelOpen,
   runDemo,
+  stopDemo,
   demoAction,
   setDemoAction,
+  demoBusy,
   onOpenFirstUse,
 }) {
   const { t } = useI18n();
@@ -114,6 +116,9 @@ function RobotArmToolbar({
         </button>
         <button disabled={!canAction || armToolbarBusy} onClick={runDemo}>
           {t('arm_demo_btn')}
+        </button>
+        <button className="ghostBtn" disabled={!demoBusy} onClick={stopDemo}>
+          {t('stop')}
         </button>
         <div className="field miniField">
           <label>{t('arm_demo_list')}</label>
@@ -456,8 +461,10 @@ export function RobotArmPage() {
                                 applyDefaultTemplate={params.applyDefaultTemplate}
                                 paramPanelOpen={params.paramPanelOpen}
                                 runDemo={sequence.runDemo}
+                                stopDemo={sequence.stopDemo}
                                 demoAction={sequence.demoAction}
                                 setDemoAction={sequence.setDemoAction}
+                                demoBusy={sequence.demoBusy}
                                 onOpenFirstUse={() => setFirstUseOpen(true)}
                               />
                               {params.paramTable}
@@ -502,6 +509,7 @@ export function RobotArmPage() {
                                   connected={connected}
                                   armBulkBusy={armBulkBusy}
                                   controlMotor={controlMotor}
+                                  refreshMotorState={refreshMotorState}
                                   patchControl={patchControl}
                                   setLimitWarn={setLimitWarn}
                                   showLimitToast={showLimitToast}
