@@ -1,23 +1,23 @@
 import React from 'react';
 import { useI18n } from '../../i18n';
-import { toHex } from '../../lib/utils';
+import { controlInputValue, parseNum, toHex } from '../../lib/utils';
 
 function modeDefaultsForRow(row, nextMode) {
   const joint = Number(row?.joint);
   if (nextMode === 'mit') {
     if (joint === 7) {
-      return { mode: nextMode, kp: '6.0', kd: '0.2', tau: '0.0' };
+      return { mode: nextMode, kp: 6, kd: 0.2, tau: 0 };
     }
-    return { mode: nextMode, kp: '12.0', kd: '0.5', tau: '0.0' };
+    return { mode: nextMode, kp: 12, kd: 0.5, tau: 0 };
   }
   if (nextMode === 'pos_vel') {
-    return { mode: nextMode, vlim: '1.0' };
+    return { mode: nextMode, vlim: 1 };
   }
   if (nextMode === 'vel') {
     return { mode: nextMode };
   }
   if (nextMode === 'force_pos') {
-    return { mode: nextMode, vlim: '1.0' };
+    return { mode: nextMode, vlim: 1 };
   }
   return { mode: nextMode };
 }
@@ -47,6 +47,9 @@ export function JointControlPanel({
   const tauDisabled = mode !== 'mit';
   const kpDisabled = mode !== 'mit';
   const kdDisabled = mode !== 'mit';
+  const patchNumber = (field) => (e) => {
+    patchControl(activeRow.key, { [field]: parseNum(e.target.value, activeRow.control?.[field] ?? 0) });
+  };
   return (
     <div className="armControlPanel">
       <div className="sectionTitle armPaneTitle">
@@ -75,39 +78,39 @@ export function JointControlPanel({
         <div className="field">
           <label>{t('vlim')}</label>
           <input
-            value={activeRow.control.vlim}
+            value={controlInputValue(activeRow.control.vlim)}
             disabled={vlimDisabled}
-            onChange={(e) => patchControl(activeRow.key, { vlim: e.target.value })}
+            onChange={patchNumber('vlim')}
           />
         </div>
         <div className="field">
           <label>{t('tau')}</label>
           <input
-            value={activeRow.control.tau}
+            value={controlInputValue(activeRow.control.tau)}
             disabled={tauDisabled}
-            onChange={(e) => patchControl(activeRow.key, { tau: e.target.value })}
+            onChange={patchNumber('tau')}
           />
         </div>
         <div className="field">
           <label>{t('kp')}</label>
           <input
-            value={activeRow.control.kp}
+            value={controlInputValue(activeRow.control.kp)}
             disabled={kpDisabled}
-            onChange={(e) => patchControl(activeRow.key, { kp: e.target.value })}
+            onChange={patchNumber('kp')}
           />
         </div>
         <div className="field">
           <label>{t('kd')}</label>
           <input
-            value={activeRow.control.kd}
+            value={controlInputValue(activeRow.control.kd)}
             disabled={kdDisabled}
-            onChange={(e) => patchControl(activeRow.key, { kd: e.target.value })}
+            onChange={patchNumber('kd')}
           />
         </div>
         <div className="field">
           <label>{t('target')}</label>
           <input
-            value={activeRow.control.target}
+            value={controlInputValue(activeRow.control.target)}
             onChange={(e) => onSliderTargetChange(e.target.value)}
           />
         </div>
@@ -144,7 +147,7 @@ export function JointControlPanel({
           </span>
           <input
             className="armPosInput"
-            value={activeRow.control.target}
+            value={controlInputValue(activeRow.control.target)}
             disabled={perJointBusy}
             onChange={(e) => onSliderTargetChange(e.target.value)}
           />
@@ -177,11 +180,11 @@ export function JointControlPanel({
               });
               setLimitWarn(msg);
               showLimitToast(msg);
-              patchControl(activeRow.key, { target: String(checked.clamped) });
+              patchControl(activeRow.key, { target: checked.clamped });
             } else {
               setLimitWarn('');
             }
-            controlMotor(activeRow.hit, 'move', { target: String(checked.clamped) });
+            controlMotor(activeRow.hit, 'move', { target: checked.clamped });
           }}
         >
           {t('move')}

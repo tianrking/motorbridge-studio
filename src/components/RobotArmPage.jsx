@@ -21,7 +21,7 @@ import {
   ToastManager,
   TrailManager,
   ZeroDialogManager,
-} from './robot-arm/RobotArmPageManagers';
+} from './robot-arm/managers';
 
 function FirstUseDialog({ open, onClose }) {
   const { t } = useI18n();
@@ -328,11 +328,11 @@ export function RobotArmPage() {
       const synced = row?.hit?.online && Number.isFinite(rawPos) ? clampByLimit(rawPos, lim) : 0;
       patchControl(row.key, {
         mode: armPreferredMode(),
-        vlim: '1.0',
-        tau: '0.0',
-        kp: '30.0',
-        kd: '1.0',
-        target: String(synced),
+        vlim: 1,
+        tau: 0,
+        kp: 30,
+        kd: 1,
+        target: synced,
       });
     });
     initControlSyncDoneRef.current = true;

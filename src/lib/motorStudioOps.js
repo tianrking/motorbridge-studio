@@ -33,6 +33,31 @@ export function modelForHit(h, vendors) {
   return h?.model || vendors?.[h?.vendor]?.model || h?.vendor;
 }
 
+export function mapResponseToHit(h, data, extra = {}) {
+  const d = data || {};
+  const flags = d.flags && typeof d.flags === 'object' ? d.flags : undefined;
+  return {
+    ...h,
+    status: Number(d.status_code ?? h.status ?? Number.NaN),
+    status_name: String(d.status_name ?? h.status_name ?? ''),
+    pos: Number(d.pos ?? h.pos ?? Number.NaN),
+    vel: Number(d.vel ?? h.vel ?? Number.NaN),
+    torq: Number(d.torq ?? h.torq ?? Number.NaN),
+    t_mos: Number(d.t_mos ?? h.t_mos ?? Number.NaN),
+    t_rotor: Number(d.t_rotor ?? h.t_rotor ?? Number.NaN),
+    has_value: Boolean(d.has_value ?? h.has_value),
+    arbitration_id: Number(d.arbitration_id ?? h.arbitration_id ?? Number.NaN),
+    can_id: Number(d.can_id ?? h.can_id ?? Number.NaN),
+    device_id: Number(d.device_id ?? h.device_id ?? Number.NaN),
+    motor_id: Number(d.motor_id ?? h.motor_id ?? Number.NaN),
+    flags: flags ?? h.flags,
+    ...extra,
+    online: true,
+    last_check_ms: Date.now(),
+    updated_at_ms: Date.now(),
+  };
+}
+
 function clampMitForSafety(h, mode, target, kp, kd, tau) {
   if (String(mode) !== 'mit') {
     return { target, kp, kd, tau, notes: [] };
@@ -290,8 +315,6 @@ export async function refreshMotorStateOp({ h, vendors, setTargetFor, sendCmd, s
     const ret = await sendCmd('state_once', {}, CMD_TIMEOUTS.stateMs);
     if (!ret.ok) throw new Error(ret.error || 'state_once failed');
 
-    const d = ret.data || {};
-    const flags = d.flags && typeof d.flags === 'object' ? d.flags : undefined;
     const damiaoParamPatch = {};
 
     if (String(h.vendor) === 'damiao') {
@@ -311,26 +334,7 @@ export async function refreshMotorStateOp({ h, vendors, setTargetFor, sendCmd, s
 
     setHits((prev) =>
       mergeHitsByVendor(prev, [
-        {
-          ...h,
-          status: Number(d.status_code ?? h.status ?? Number.NaN),
-          status_name: String(d.status_name ?? h.status_name ?? ''),
-          pos: Number(d.pos ?? h.pos ?? Number.NaN),
-          vel: Number(d.vel ?? h.vel ?? Number.NaN),
-          torq: Number(d.torq ?? h.torq ?? Number.NaN),
-          t_mos: Number(d.t_mos ?? h.t_mos ?? Number.NaN),
-          t_rotor: Number(d.t_rotor ?? h.t_rotor ?? Number.NaN),
-          has_value: Boolean(d.has_value ?? h.has_value),
-          arbitration_id: Number(d.arbitration_id ?? h.arbitration_id ?? Number.NaN),
-          can_id: Number(d.can_id ?? h.can_id ?? Number.NaN),
-          device_id: Number(d.device_id ?? h.device_id ?? Number.NaN),
-          motor_id: Number(d.motor_id ?? h.motor_id ?? Number.NaN),
-          flags: flags ?? h.flags,
-          ...damiaoParamPatch,
-          online: true,
-          last_check_ms: Date.now(),
-          updated_at_ms: Date.now(),
-        },
+        mapResponseToHit(h, ret.data, damiaoParamPatch),
       ]),
     );
 
@@ -364,29 +368,9 @@ export async function checkOnlineOnceOp({
     const ret = await sendCmd('state_once', {}, 1200);
     if (!ret.ok) throw new Error(ret.error || 'state_once failed');
 
-    const d = ret.data || {};
-    const flags = d.flags && typeof d.flags === 'object' ? d.flags : undefined;
     setHits((prev) =>
       mergeHitsByVendor(prev, [
-        {
-          ...h,
-          status: Number(d.status_code ?? h.status ?? Number.NaN),
-          status_name: String(d.status_name ?? h.status_name ?? ''),
-          pos: Number(d.pos ?? h.pos ?? Number.NaN),
-          vel: Number(d.vel ?? h.vel ?? Number.NaN),
-          torq: Number(d.torq ?? h.torq ?? Number.NaN),
-          t_mos: Number(d.t_mos ?? h.t_mos ?? Number.NaN),
-          t_rotor: Number(d.t_rotor ?? h.t_rotor ?? Number.NaN),
-          has_value: Boolean(d.has_value ?? h.has_value),
-          arbitration_id: Number(d.arbitration_id ?? h.arbitration_id ?? Number.NaN),
-          can_id: Number(d.can_id ?? h.can_id ?? Number.NaN),
-          device_id: Number(d.device_id ?? h.device_id ?? Number.NaN),
-          motor_id: Number(d.motor_id ?? h.motor_id ?? Number.NaN),
-          flags: flags ?? h.flags,
-          online: true,
-          last_check_ms: Date.now(),
-          updated_at_ms: Date.now(),
-        },
+        mapResponseToHit(h, ret.data),
       ]),
     );
 

@@ -280,13 +280,13 @@ export function useRobotArmOps({
           [key]: {
             ...(prev[key] || defaultControlsForHit(row.hit)),
             mode,
-            target: '0.0',
+            target: 0,
           },
         }));
         const ok = await controlMotor(
           row.hit,
           'move',
-          { mode, target: '0.0' },
+          { mode, target: 0 },
           { allowDuringBulk: true }
         );
         if (ok) okCount += 1;

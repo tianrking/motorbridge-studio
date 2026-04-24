@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { defaultControlsForHit, motorKey, ts } from '../lib/utils';
+import { motorKey, normalizeControlForHit, ts } from '../lib/utils';
 import { usePersistedState } from './usePersistedState';
 import { useI18n } from '../i18n';
 import { useConnectionState } from './useConnectionState';
@@ -104,7 +104,7 @@ export function useMotorStudio() {
     [hits, activeMotorKey],
   );
   const activeControl = activeMotor
-    ? controls[motorKey(activeMotor)] || defaultControlsForHit(activeMotor)
+    ? normalizeControlForHit(activeMotor, controls[motorKey(activeMotor)])
     : null;
 
   const clearLogs = () => setLogs([]);

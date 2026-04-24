@@ -1,4 +1,4 @@
-import { defaultControlsForHit, getResponseValue, mergeHitsByVendor, motorKey, toHex } from '../lib/utils';
+import { defaultControlsForHit, getResponseValue, mergeHitsByVendor, motorKey, normalizeControlValue, toHex } from '../lib/utils';
 import { DAMIAO_REGISTER_SNAPSHOT_FIELDS } from '../lib/appConfig';
 import {
   controlMotorOp,
@@ -23,7 +23,16 @@ export function useMotorControl({
   armBulkBusy,
 }) {
   const patchControl = (k, patch) => {
-    setControls((prev) => ({ ...prev, [k]: { ...(prev[k] || {}), ...patch } }));
+    setControls((prev) => {
+      const base = prev[k] || {};
+      const normalizedPatch = Object.fromEntries(
+        Object.entries(patch || {}).map(([field, value]) => [
+          field,
+          normalizeControlValue(field, value, base[field]),
+        ]),
+      );
+      return { ...prev, [k]: { ...base, ...normalizedPatch } };
+    });
   };
 
   const syncDamiaoRegisterSnapshot = (h, rid, value) => {

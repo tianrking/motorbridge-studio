@@ -17,6 +17,35 @@ export function toHex(n) {
   return `0x${Number(n).toString(16).toUpperCase()}`;
 }
 
+export const NUMERIC_CONTROL_FIELDS = new Set(['target', 'vlim', 'kp', 'kd', 'tau', 'ratio', 'newEsc', 'newMst']);
+
+export function normalizeControlValue(field, value, fallback = 0) {
+  if (!NUMERIC_CONTROL_FIELDS.has(field)) return value;
+  return parseNum(value, fallback);
+}
+
+export function normalizeControlForHit(hit, rawControl) {
+  const defaults = defaultControlsForHit(hit);
+  const merged = {
+    ...defaults,
+    ...(rawControl && typeof rawControl === 'object' ? rawControl : {}),
+  };
+  Object.keys(defaults).forEach((field) => {
+    const fallback = defaults[field];
+    const value = merged[field];
+    if (value == null || String(value).trim() === '') {
+      merged[field] = fallback;
+      return;
+    }
+    merged[field] = normalizeControlValue(field, value, fallback);
+  });
+  return merged;
+}
+
+export function controlInputValue(value) {
+  return value == null ? '' : String(value);
+}
+
 export function getResponseValue(ret) {
   return ret?.data?.value ?? ret?.value ?? ret?.data?.result?.value ?? ret?.result?.value;
 }
@@ -53,14 +82,14 @@ export function defaultControlsForHit(hit) {
   return {
     mode,
     enabled: false,
-    target: '0.0',
-    vlim: '1.0',
-    kp: '30.0',
-    kd: '1.0',
-    tau: '0.0',
-    ratio: '0.10',
-    newEsc: toHex(hit.esc_id),
-    newMst: toHex(hit.mst_id),
+    target: 0,
+    vlim: 1,
+    kp: 30,
+    kd: 1,
+    tau: 0,
+    ratio: 0.1,
+    newEsc: Number(hit.esc_id),
+    newMst: Number(hit.mst_id),
   };
 }
 

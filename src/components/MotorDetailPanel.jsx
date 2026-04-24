@@ -1,7 +1,7 @@
 import React from 'react';
 import { DAMIAO_RW_REGISTER_DEFS } from '../lib/appConfig';
 import { SET_ID_VENDORS, VENDOR_LABELS } from '../lib/constants';
-import { formatLocal, getResponseValue, motorKey, toHex } from '../lib/utils';
+import { controlInputValue, formatLocal, getResponseValue, motorKey, parseNum, toHex } from '../lib/utils';
 import { useI18n } from '../i18n';
 
 function ModeSelect({ vendor, value, onChange }) {
@@ -76,6 +76,8 @@ export function MotorDetailPanel({
 
   const key = motorKey(activeMotor);
   const patch = (field) => (e) => patchControl(key, { [field]: e.target.value });
+  const patchNumber = (field) => (e) =>
+    patchControl(key, { [field]: parseNum(e.target.value, activeControl?.[field] ?? 0) });
   const vendor = String(activeMotor.vendor || '').toLowerCase();
   const commonDamiaoRw = DAMIAO_RW_REGISTER_DEFS.filter((x) => x.common);
   const lessCommonDamiaoRw = DAMIAO_RW_REGISTER_DEFS.filter((x) => !x.common);
@@ -180,14 +182,14 @@ export function MotorDetailPanel({
           <label>{t('mode')}</label>
           <ModeSelect vendor={activeMotor.vendor} value={activeControl.mode} onChange={patch('mode')} />
         </div>
-        <Field label={t('target')} value={activeControl.target} onChange={patch('target')} />
-        <Field label={t('vlim')} value={activeControl.vlim} onChange={patch('vlim')} />
-        <Field label={t('kp')} value={activeControl.kp} onChange={patch('kp')} />
-        <Field label={t('kd')} value={activeControl.kd} onChange={patch('kd')} />
-        <Field label={t('tau')} value={activeControl.tau} onChange={patch('tau')} />
-        <Field label={t('ratio')} value={activeControl.ratio} onChange={patch('ratio')} />
-        <Field label={t('new_esc')} value={activeControl.newEsc} onChange={patch('newEsc')} />
-        <Field label={t('new_mst')} value={activeControl.newMst} onChange={patch('newMst')} />
+        <Field label={t('target')} value={controlInputValue(activeControl.target)} onChange={patchNumber('target')} />
+        <Field label={t('vlim')} value={controlInputValue(activeControl.vlim)} onChange={patchNumber('vlim')} />
+        <Field label={t('kp')} value={controlInputValue(activeControl.kp)} onChange={patchNumber('kp')} />
+        <Field label={t('kd')} value={controlInputValue(activeControl.kd)} onChange={patchNumber('kd')} />
+        <Field label={t('tau')} value={controlInputValue(activeControl.tau)} onChange={patchNumber('tau')} />
+        <Field label={t('ratio')} value={controlInputValue(activeControl.ratio)} onChange={patchNumber('ratio')} />
+        <Field label={t('new_esc')} value={controlInputValue(activeControl.newEsc)} onChange={patchNumber('newEsc')} />
+        <Field label={t('new_mst')} value={controlInputValue(activeControl.newMst)} onChange={patchNumber('newMst')} />
       </div>
 
       <div className="row toolbar compactToolbar">

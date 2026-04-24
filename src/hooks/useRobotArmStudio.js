@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { defaultControlsForHit, motorKey } from '../lib/utils';
+import { motorKey, normalizeControlForHit } from '../lib/utils';
 import { sleep } from '../lib/async';
 import {
   ROBOT_ARM_JOINTS,
@@ -12,20 +12,6 @@ import {
 import { usePersistedState } from './usePersistedState';
 
 const LS_ROBOT_ARM_MODEL_KEY = 'motorbridge_studio_robot_arm_model_v1';
-
-function normalizeControlForHit(hit, rawControl) {
-  const defaults = defaultControlsForHit(hit);
-  const merged = {
-    ...defaults,
-    ...(rawControl && typeof rawControl === 'object' ? rawControl : {}),
-  };
-  const required = ['mode', 'target', 'vlim', 'kp', 'kd', 'tau', 'ratio', 'newEsc', 'newMst'];
-  required.forEach((k) => {
-    const v = merged[k];
-    if (v == null || String(v).trim() === '') merged[k] = defaults[k];
-  });
-  return merged;
-}
 
 export function useRobotArmStudio({
   hits,
