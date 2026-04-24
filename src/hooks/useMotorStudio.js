@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { defaultControlsForHit, motorKey, ts } from '../lib/utils';
 import { usePersistedState } from './usePersistedState';
 import { useI18n } from '../i18n';
@@ -16,15 +16,15 @@ export function useMotorStudio() {
   const { t } = useI18n();
 
   const [hits, setHits] = usePersistedState(LS_HITS_KEY, [], (cached) =>
-    Array.isArray(cached) ? cached : []
+    Array.isArray(cached) ? cached : [],
   );
   const [controls, setControls] = usePersistedState(LS_CONTROLS_KEY, {}, (cached) =>
-    cached && typeof cached === 'object' ? cached : {}
+    cached && typeof cached === 'object' ? cached : {},
   );
   const [activeMotorKey, setActiveMotorKey] = usePersistedState(
     LS_ACTIVE_MOTOR_KEY,
     '',
-    (cached) => (typeof cached === 'string' ? cached : '')
+    (cached) => (typeof cached === 'string' ? cached : ''),
   );
 
   const [selected, setSelected] = useState(new Set());
@@ -36,40 +36,40 @@ export function useMotorStudio() {
     setLogs((prev) => [...prev, { t: ts(), msg, level }].slice(-500));
   };
 
-  const connection = useConnectionState({ pushLog, setStateSnapshot });
+  const connectionState = useConnectionState({ pushLog, setStateSnapshot });
   const preferences = usePreferences();
 
-  const scan = useScanState({
+  const scanState = useScanState({
     t,
-    connected: connection.connected,
-    scanTimeoutMs: connection.scanTimeoutMs,
+    connected: connectionState.connected,
+    scanTimeoutMs: connectionState.scanTimeoutMs,
     activeMotorKey,
     setActiveMotorKey,
     setHits,
     setControls,
     pushLog,
-    closeBusQuietly: connection.closeBusQuietly,
-    setTargetFor: connection.setTargetFor,
-    sendCmd: connection.sendCmd,
+    closeBusQuietly: connectionState.closeBusQuietly,
+    setTargetFor: connectionState.setTargetFor,
+    sendCmd: connectionState.sendCmd,
   });
 
   const [armBulkBusyForControl, setArmBulkBusyForControl] = useState(false);
   const motorControl = useMotorControl({
     t,
-    vendors: scan.vendors,
+    vendors: scanState.vendors,
     controls,
     setHits,
     setControls,
     pushLog,
-    setTargetFor: connection.setTargetFor,
-    sendCmd: connection.sendCmd,
-    closeBusQuietly: connection.closeBusQuietly,
+    setTargetFor: connectionState.setTargetFor,
+    sendCmd: connectionState.sendCmd,
+    closeBusQuietly: connectionState.closeBusQuietly,
     armBulkBusy: armBulkBusyForControl,
   });
 
-  const robotArm = useRobotArmOps({
-    connected: connection.connected,
-    vendors: scan.vendors,
+  const robotArmState = useRobotArmOps({
+    connected: connectionState.connected,
+    vendors: scanState.vendors,
     hits,
     setHits,
     controls,
@@ -80,14 +80,14 @@ export function useMotorStudio() {
     controlMotor: motorControl.controlMotor,
     zeroMotor: motorControl.zeroMotor,
     probeMotor: motorControl.probeMotor,
-    setTargetFor: connection.setTargetFor,
-    sendCmd: connection.sendCmd,
-    closeBusQuietly: connection.closeBusQuietly,
+    setTargetFor: connectionState.setTargetFor,
+    sendCmd: connectionState.sendCmd,
+    closeBusQuietly: connectionState.closeBusQuietly,
   });
 
   useEffect(() => {
-    setArmBulkBusyForControl(robotArm.armBulkBusy);
-  }, [robotArm.armBulkBusy]);
+    setArmBulkBusyForControl(robotArmState.armBulkBusy);
+  }, [robotArmState.armBulkBusy]);
 
   useEffect(() => {
     if (!activeMotorKey) return;
@@ -97,94 +97,150 @@ export function useMotorStudio() {
 
   const selectedHits = useMemo(
     () => hits.filter((h) => selected.has(motorKey(h))),
-    [hits, selected]
+    [hits, selected],
   );
   const activeMotor = useMemo(
     () => hits.find((h) => motorKey(h) === activeMotorKey) || null,
-    [hits, activeMotorKey]
+    [hits, activeMotorKey],
   );
   const activeControl = activeMotor
     ? controls[motorKey(activeMotor)] || defaultControlsForHit(activeMotor)
     : null;
 
   const clearLogs = () => setLogs([]);
-  const clearOfflineMotors = () => scan.clearOfflineMotors(hits, setSelected);
-  const removeMotorCard = (hit) => scan.removeMotorCard(hit, setSelected);
-  const clearDevices = () => {
-    scan.clearDevices();
+  const clearOfflineMotors = useCallback(() => scanState.clearOfflineMotors(hits, setSelected), [hits, scanState]);
+  const removeMotorCard = useCallback((hit) => scanState.removeMotorCard(hit, setSelected), [scanState]);
+  const clearDevices = useCallback(() => {
+    scanState.clearDevices();
     setSelected(new Set());
-  };
+  }, [scanState]);
 
-  return {
-    wsUrl: connection.wsUrl,
-    setWsUrl: connection.setWsUrl,
-    channel: connection.channel,
-    setChannel: connection.setChannel,
-    scanTimeoutMs: connection.scanTimeoutMs,
-    setScanTimeoutMs: connection.setScanTimeoutMs,
-    connText: connection.connText,
-    connected: connection.connected,
-    targetTransport: connection.targetTransport,
-    targetSerialPort: connection.targetSerialPort,
-    connectWs: connection.connectWs,
-    disconnectWs: connection.disconnectWs,
-    scanBusy: scan.scanBusy,
-    scanProgress: scan.scanProgress,
-    scanFoundFx: scan.scanFoundFx,
-    canAction: connection.connected && !scan.scanBusy && !robotArm.armBulkBusy,
-    vendors: scan.vendors,
-    setVendors: scan.setVendors,
-    hits,
-    controls,
-    selectedHits,
-    activeMotor,
-    activeControl,
-    activeMotorKey,
-    setActiveMotorKey,
-    newCardKeys: scan.newCardKeys,
-    menuOpen,
-    setMenuOpen,
-    stateSnapshot,
-    logs,
-    clearLogs,
-    uiPrefs: preferences.uiPrefs,
-    toggleUiPref: preferences.toggleUiPref,
-    setUiPref: preferences.setUiPref,
-    manualDraft: scan.manualDraft,
-    setManualDraft: scan.setManualDraft,
-    robotArmModel: robotArm.robotArmModel,
-    armScanBusy: robotArm.armScanBusy,
-    armScanProgress: robotArm.armScanProgress,
-    armBulkBusy: robotArm.armBulkBusy,
-    armSelfCheckBusy: robotArm.armSelfCheckBusy,
-    armSelfCheckProgress: robotArm.armSelfCheckProgress,
-    armSelfCheckReport: robotArm.armSelfCheckReport,
-    setRobotArmModel: robotArm.setRobotArmModel,
-    robotArmJointRows: robotArm.robotArmJointRows,
-    cardRefs: scan.cardRefs,
-    runScan: scan.runScan,
-    removeMotorCard,
-    moveMotorCard: scan.moveMotorCard,
-    addManualCard: scan.addManualCard,
-    probeMotor: motorControl.probeMotor,
-    clearDevices,
-    clearOfflineMotors,
-    patchControl: motorControl.patchControl,
-    controlMotor: motorControl.controlMotor,
-    zeroMotor: motorControl.zeroMotor,
-    verifyHit: motorControl.verifyHit,
-    setIdFor: motorControl.setIdFor,
-    refreshMotorState: motorControl.refreshMotorState,
-    runMotorOp: motorControl.runMotorOp,
-    ensureRobotArmCards: robotArm.ensureRobotArmCards,
-    scanRobotArmJoint: robotArm.scanRobotArmJoint,
-    scanRobotArmAll: robotArm.scanRobotArmAll,
-    runRobotArmSelfCheck: robotArm.runRobotArmSelfCheck,
-    enableAllRobotArm: robotArm.enableAllRobotArm,
-    disableAllRobotArm: robotArm.disableAllRobotArm,
-    zeroAllRobotArm: robotArm.zeroAllRobotArm,
-    resetPoseRobotArm: robotArm.resetPoseRobotArm,
-    readRobotArmControlParams: robotArm.readRobotArmControlParams,
-    writeRobotArmControlParams: robotArm.writeRobotArmControlParams,
-  };
+  const canAction = connectionState.connected && !scanState.scanBusy && !robotArmState.armBulkBusy;
+
+  const connection = useMemo(
+    () => ({
+      wsUrl: connectionState.wsUrl,
+      setWsUrl: connectionState.setWsUrl,
+      channel: connectionState.channel,
+      setChannel: connectionState.setChannel,
+      scanTimeoutMs: connectionState.scanTimeoutMs,
+      setScanTimeoutMs: connectionState.setScanTimeoutMs,
+      connText: connectionState.connText,
+      connected: connectionState.connected,
+      targetTransport: connectionState.targetTransport,
+      targetSerialPort: connectionState.targetSerialPort,
+      connectWs: connectionState.connectWs,
+      disconnectWs: connectionState.disconnectWs,
+      canAction,
+    }),
+    [connectionState, canAction],
+  );
+
+  const scan = useMemo(
+    () => ({
+      scanBusy: scanState.scanBusy,
+      scanProgress: scanState.scanProgress,
+      scanFoundFx: scanState.scanFoundFx,
+      vendors: scanState.vendors,
+      setVendors: scanState.setVendors,
+      hits,
+      selectedHits,
+      activeMotor,
+      activeControl,
+      activeMotorKey,
+      setActiveMotorKey,
+      newCardKeys: scanState.newCardKeys,
+      manualDraft: scanState.manualDraft,
+      setManualDraft: scanState.setManualDraft,
+      cardRefs: scanState.cardRefs,
+      runScan: scanState.runScan,
+      removeMotorCard,
+      moveMotorCard: scanState.moveMotorCard,
+      addManualCard: scanState.addManualCard,
+      clearDevices,
+      clearOfflineMotors,
+    }),
+    [
+      activeControl,
+      activeMotor,
+      activeMotorKey,
+      clearDevices,
+      clearOfflineMotors,
+      hits,
+      removeMotorCard,
+      scanState,
+      selectedHits,
+      setActiveMotorKey,
+    ],
+  );
+
+  const control = useMemo(
+    () => ({
+      controls,
+      patchControl: motorControl.patchControl,
+      controlMotor: motorControl.controlMotor,
+      zeroMotor: motorControl.zeroMotor,
+      verifyHit: motorControl.verifyHit,
+      setIdFor: motorControl.setIdFor,
+      refreshMotorState: motorControl.refreshMotorState,
+      runMotorOp: motorControl.runMotorOp,
+      probeMotor: motorControl.probeMotor,
+    }),
+    [controls, motorControl],
+  );
+
+  const robotArm = useMemo(
+    () => ({
+      robotArmModel: robotArmState.robotArmModel,
+      armScanBusy: robotArmState.armScanBusy,
+      armScanProgress: robotArmState.armScanProgress,
+      armBulkBusy: robotArmState.armBulkBusy,
+      armSelfCheckBusy: robotArmState.armSelfCheckBusy,
+      armSelfCheckProgress: robotArmState.armSelfCheckProgress,
+      armSelfCheckReport: robotArmState.armSelfCheckReport,
+      setRobotArmModel: robotArmState.setRobotArmModel,
+      robotArmJointRows: robotArmState.robotArmJointRows,
+      ensureRobotArmCards: robotArmState.ensureRobotArmCards,
+      scanRobotArmJoint: robotArmState.scanRobotArmJoint,
+      scanRobotArmAll: robotArmState.scanRobotArmAll,
+      runRobotArmSelfCheck: robotArmState.runRobotArmSelfCheck,
+      enableAllRobotArm: robotArmState.enableAllRobotArm,
+      disableAllRobotArm: robotArmState.disableAllRobotArm,
+      zeroAllRobotArm: robotArmState.zeroAllRobotArm,
+      resetPoseRobotArm: robotArmState.resetPoseRobotArm,
+      readRobotArmControlParams: robotArmState.readRobotArmControlParams,
+      writeRobotArmControlParams: robotArmState.writeRobotArmControlParams,
+    }),
+    [robotArmState],
+  );
+
+  const logsDomain = useMemo(
+    () => ({
+      stateSnapshot,
+      logs,
+      clearLogs,
+    }),
+    [stateSnapshot, logs],
+  );
+
+  const workspace = useMemo(
+    () => ({
+      menuOpen,
+      setMenuOpen,
+    }),
+    [menuOpen],
+  );
+
+  return useMemo(
+    () => ({
+      connection,
+      scan,
+      control,
+      robotArm,
+      preferences,
+      logs: logsDomain,
+      workspace,
+    }),
+    [connection, control, logsDomain, preferences, robotArm, scan, workspace],
+  );
 }

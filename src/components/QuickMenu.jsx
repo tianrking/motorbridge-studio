@@ -1,10 +1,11 @@
 import React from 'react';
 import { useI18n } from '../i18n';
-import { useMotorStudioContext } from '../hooks/useMotorStudioContext';
+import { useConnectionContext, useScanContext } from '../hooks/useMotorStudioContext';
 
 export function QuickMenu() {
   const { t } = useI18n();
-  const { canAction, runScan, clearDevices, connectWs, disconnectWs } = useMotorStudioContext();
+  const { canAction, connectWs, disconnectWs } = useConnectionContext();
+  const { runScan, clearDevices } = useScanContext();
   return (
     <section className="card glass actionMenu">
       <div className="menuGrid">

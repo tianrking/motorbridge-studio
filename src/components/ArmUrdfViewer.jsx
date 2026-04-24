@@ -13,6 +13,53 @@ const TRAIL_MAX_POINTS = 1200;
 const TRAIL_SAMPLE_MIN_DIST = 0.001;
 const SAFE_ZERO_SEGMENT = [0, 0, 0, 0, 0, 0];
 
+function setLinePositionsSafe(line, flatPositions) {
+  if (!line?.geometry) return;
+  if (!Array.isArray(flatPositions) || flatPositions.length < 6) {
+    line.geometry.setPositions(SAFE_ZERO_SEGMENT);
+    line.computeLineDistances?.();
+    line.geometry.computeBoundingSphere?.();
+    return;
+  }
+  line.geometry.setPositions(flatPositions);
+  line.computeLineDistances?.();
+  line.geometry.computeBoundingSphere?.();
+}
+
+function normalizeJointMapValue(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const out = {};
+  Object.entries(raw).forEach(([k, v]) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return;
+    const key = String(k || '');
+    if (/^joint\d+$/i.test(key)) {
+      out[key.toLowerCase()] = n;
+      return;
+    }
+    if (/^\d+$/.test(key)) {
+      out[`joint${Number(key)}`] = n;
+    }
+  });
+  return Object.keys(out).length ? out : null;
+}
+
+function interpolateJointMapValue(a, b, t) {
+  const aj = a && typeof a === 'object' ? a : null;
+  const bj = b && typeof b === 'object' ? b : null;
+  if (!aj && !bj) return null;
+  const keys = new Set([...(aj ? Object.keys(aj) : []), ...(bj ? Object.keys(bj) : [])]);
+  const out = {};
+  keys.forEach((k) => {
+    const av = Number(aj?.[k]);
+    const bv = Number(bj?.[k]);
+    if (Number.isFinite(av) && Number.isFinite(bv)) out[k] = av + (bv - av) * t;
+    else if (Number.isFinite(av)) out[k] = av;
+    else if (Number.isFinite(bv)) out[k] = bv;
+  });
+  return Object.keys(out).length ? out : null;
+}
+
 export function ArmUrdfViewer({
   jointTargets,
   resetViewSeq = 0,
@@ -42,7 +89,6 @@ export function ArmUrdfViewer({
   const trailLineRef = React.useRef(null);
   const trailRainbowRef = React.useRef(null);
   const trailDotsRef = React.useRef(null);
-  const trailTubeRef = React.useRef(null);
   const trailPointsRef = React.useRef([]);
   const trailFramesRef = React.useRef([]);
   const endEffectorRef = React.useRef(null);
@@ -51,58 +97,27 @@ export function ArmUrdfViewer({
   const replayRef = React.useRef({ active: false, frames: [], cursor: 0 });
   const replayBusyRef = React.useRef(false);
   const replaySpeedRef = React.useRef(Math.max(0.05, Number(replaySpeed) || 1));
+  const onReplayStateChangeRef = React.useRef(onReplayStateChange);
   const tmpWorldRef = React.useRef(new THREE.Vector3());
   const [status, setStatus] = React.useState('loading');
 
-  const setLinePositionsSafe = React.useCallback((line, flatPositions) => {
-    if (!line?.geometry) return;
-    if (!Array.isArray(flatPositions) || flatPositions.length < 6) {
-      line.geometry.setPositions(SAFE_ZERO_SEGMENT);
-      line.computeLineDistances?.();
-      line.geometry.computeBoundingSphere?.();
-      return;
-    }
-    line.geometry.setPositions(flatPositions);
-    line.computeLineDistances?.();
-    line.geometry.computeBoundingSphere?.();
-  }, []);
+  React.useEffect(() => {
+    onReplayStateChangeRef.current = onReplayStateChange;
+  }, [onReplayStateChange]);
 
   const applyTrajectoryColor = React.useCallback((hexColor) => {
     const color = new THREE.Color(hexColor || '#ff0000');
     const lineMat = trailLineRef.current?.material;
     const dotsMat = trailDotsRef.current?.material;
-    const tubeMat = trailTubeRef.current?.material;
     if (lineMat?.color) lineMat.color.copy(color);
     if (dotsMat?.color) dotsMat.color.copy(color);
-    if (tubeMat?.color) tubeMat.color.copy(color);
   }, []);
 
-  const setReplayBusy = React.useCallback(
-    (next) => {
-      const busy = Boolean(next);
-      if (replayBusyRef.current === busy) return;
-      replayBusyRef.current = busy;
-      if (typeof onReplayStateChange === 'function') onReplayStateChange(busy);
-    },
-    [onReplayStateChange],
-  );
-
-  const normalizeJointMap = React.useCallback((raw) => {
-    if (!raw || typeof raw !== 'object') return null;
-    const out = {};
-    Object.entries(raw).forEach(([k, v]) => {
-      const n = Number(v);
-      if (!Number.isFinite(n)) return;
-      const key = String(k || '');
-      if (/^joint\d+$/i.test(key)) {
-        out[key.toLowerCase()] = n;
-        return;
-      }
-      if (/^\d+$/.test(key)) {
-        out[`joint${Number(key)}`] = n;
-      }
-    });
-    return Object.keys(out).length ? out : null;
+  const setReplayBusy = React.useCallback((next) => {
+    const busy = Boolean(next);
+    if (replayBusyRef.current === busy) return;
+    replayBusyRef.current = busy;
+    if (typeof onReplayStateChangeRef.current === 'function') onReplayStateChangeRef.current(busy);
   }, []);
 
   const captureJointSnapshot = React.useCallback(() => {
@@ -134,46 +149,25 @@ export function ArmUrdfViewer({
     animJointRef.current = nextAnim;
   }, []);
 
-  const interpolateJointMap = React.useCallback((a, b, t) => {
-    const aj = a && typeof a === 'object' ? a : null;
-    const bj = b && typeof b === 'object' ? b : null;
-    if (!aj && !bj) return null;
-    const keys = new Set([...(aj ? Object.keys(aj) : []), ...(bj ? Object.keys(bj) : [])]);
-    const out = {};
-    keys.forEach((k) => {
-      const av = Number(aj?.[k]);
-      const bv = Number(bj?.[k]);
-      if (Number.isFinite(av) && Number.isFinite(bv)) out[k] = av + (bv - av) * t;
-      else if (Number.isFinite(av)) out[k] = av;
-      else if (Number.isFinite(bv)) out[k] = bv;
-    });
-    return Object.keys(out).length ? out : null;
-  }, []);
+  const interpolateJointMap = React.useCallback(interpolateJointMapValue, []);
 
   const pushTrailPoint = React.useCallback((point, joints = null) => {
     const line = trailLineRef.current;
     const rainbowLine = trailRainbowRef.current;
     const dots = trailDotsRef.current;
-    const tube = trailTubeRef.current;
     if (!line || !point) return;
     const rawPoints = trailPointsRef.current;
     const rawFrames = trailFramesRef.current;
     rawPoints.push(point.clone());
     rawFrames.push({
       pos: point.clone(),
-      joints: normalizeJointMap(joints),
+      joints: normalizeJointMapValue(joints),
     });
     if (rawPoints.length > TRAIL_MAX_POINTS) rawPoints.splice(0, rawPoints.length - TRAIL_MAX_POINTS);
     if (rawFrames.length > TRAIL_MAX_POINTS) rawFrames.splice(0, rawFrames.length - TRAIL_MAX_POINTS);
 
-    const curvePoints =
-      rawPoints.length >= 3
-        ? new THREE.CatmullRomCurve3(rawPoints, false, 'catmullrom', 0.18).getPoints(
-            Math.min(3600, Math.max(24, (rawPoints.length - 1) * 4)),
-          )
-        : rawPoints;
     const flat = [];
-    curvePoints.forEach((p) => {
+    rawPoints.forEach((p) => {
       flat.push(p.x, p.y, p.z);
     });
     // LineGeometry requires at least 2 points (6 floats), otherwise it throws.
@@ -187,11 +181,11 @@ export function ArmUrdfViewer({
       const base = new THREE.Color(trailColorRef.current || '#ff0000');
       const hsl = { h: 0, s: 1, l: 0.5 };
       base.getHSL(hsl);
-      curvePoints.forEach((p, i) => {
+      rawPoints.forEach((p, i) => {
         posArr.push(p.x, p.y, p.z);
         let c = base;
         if (trailStyleRef.current === 'multi') {
-          const t = curvePoints.length > 1 ? i / (curvePoints.length - 1) : 0;
+          const t = rawPoints.length > 1 ? i / (rawPoints.length - 1) : 0;
           c = new THREE.Color().setHSL((hsl.h + 0.25 * t) % 1, Math.min(1, hsl.s * 0.95 + 0.05), 0.42 + 0.25 * t);
         }
         colArr.push(c.r, c.g, c.b);
@@ -204,19 +198,7 @@ export function ArmUrdfViewer({
       dots.geometry.setFromPoints(rawPoints);
       dots.geometry.computeBoundingSphere();
     }
-    if (tube) {
-      if (rawPoints.length >= 2) {
-        const curve = new THREE.CatmullRomCurve3(rawPoints, false, 'catmullrom', 0.18);
-        const tubularSegments = Math.min(1200, Math.max(24, rawPoints.length * 2));
-        const nextGeom = new THREE.TubeGeometry(curve, tubularSegments, 0.0028, 10, false);
-        const prevGeom = tube.geometry;
-        tube.geometry = nextGeom;
-        prevGeom?.dispose?.();
-      } else {
-        tube.geometry = new THREE.BufferGeometry();
-      }
-    }
-  }, [setLinePositionsSafe, normalizeJointMap]);
+  }, []);
 
   const clearTrail = React.useCallback(() => {
     trailPointsRef.current = [];
@@ -236,23 +218,17 @@ export function ArmUrdfViewer({
       );
       trailRainbowRef.current.geometry.computeBoundingSphere();
     }
-    if (trailTubeRef.current?.geometry) {
-      trailTubeRef.current.geometry.dispose?.();
-      trailTubeRef.current.geometry = new THREE.BufferGeometry();
-    }
-  }, [setLinePositionsSafe]);
+  }, []);
 
   React.useEffect(() => {
     modeRef.current = simMode;
     const line = trailLineRef.current;
     const rainbowLine = trailRainbowRef.current;
     const dots = trailDotsRef.current;
-    const tube = trailTubeRef.current;
     const canShow = simMode === 'trajectory' && trailVisibleRef.current;
     if (line) line.visible = canShow && trailStyleRef.current !== 'multi';
     if (rainbowLine) rainbowLine.visible = canShow;
     if (dots) dots.visible = canShow;
-    if (tube) tube.visible = canShow;
     if (simMode === 'trajectory') {
       const robot = robotRef.current;
       if (robot?.joints) {
@@ -304,9 +280,6 @@ export function ArmUrdfViewer({
     }
     if (trailDotsRef.current) {
       trailDotsRef.current.visible = canShow;
-    }
-    if (trailTubeRef.current) {
-      trailTubeRef.current.visible = canShow;
     }
     if (trailHeadRef.current) {
       trailHeadRef.current.visible = canShow;
@@ -367,7 +340,7 @@ export function ArmUrdfViewer({
         if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
         return {
           pos: new THREE.Vector3(x, y, z),
-          joints: normalizeJointMap(p?.joints),
+          joints: normalizeJointMapValue(p?.joints),
         };
       })
       .filter(Boolean);
@@ -378,7 +351,7 @@ export function ArmUrdfViewer({
     // Import stores sequence only; it doesn't auto-render full trajectory.
     // User triggers replay explicitly.
     if (trailHeadRef.current) trailHeadRef.current.position.copy(frames[0].pos);
-  }, [importedTrail, normalizeJointMap, setReplayBusy]);
+  }, [importedTrail, setReplayBusy]);
 
   React.useEffect(() => {
     if (!replaySeq) return;
@@ -516,23 +489,6 @@ export function ArmUrdfViewer({
     trailDots.renderOrder = 1000;
     scene.add(trailDots);
     trailDotsRef.current = trailDots;
-    const trailTube = new THREE.Mesh(
-      new THREE.BufferGeometry(),
-      new THREE.MeshBasicMaterial({
-        color: 0xff0000,
-        transparent: true,
-        opacity: 0.92,
-        depthTest: false,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    );
-    trailTube.visible = modeRef.current === 'trajectory';
-    trailTube.frustumCulled = false;
-    trailTube.renderOrder = 999;
-    scene.add(trailTube);
-    trailTubeRef.current = trailTube;
-
     applyTrajectoryColor(trailColorRef.current);
 
     const trailHead = new THREE.Mesh(
@@ -631,7 +587,7 @@ export function ArmUrdfViewer({
       animJointRef.current = nextState;
     };
 
-      const sampleTrail = () => {
+    const sampleTrail = () => {
       if (modeRef.current !== 'trajectory') return;
       const eff = endEffectorRef.current;
       const line = trailLineRef.current;
@@ -716,7 +672,6 @@ export function ArmUrdfViewer({
       trailLineRef.current = null;
       trailRainbowRef.current = null;
       trailDotsRef.current = null;
-      trailTubeRef.current = null;
       trailHeadRef.current = null;
       endEffectorRef.current = null;
       trailPointsRef.current = [];

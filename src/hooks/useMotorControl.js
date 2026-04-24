@@ -7,6 +7,7 @@ import {
   setIdForOp,
   verifyHitOp,
   zeroMotorOp,
+  modelForHit,
 } from '../lib/motorStudioOps';
 
 export function useMotorControl({
@@ -106,7 +107,7 @@ export function useMotorControl({
   ) => {
     try {
       if (options?.setTarget !== false) {
-        await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+        await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
       }
       const ret = await sendCmd(op, payload, timeoutMs);
       if (!ret?.ok) throw new Error(ret?.error || `${op} failed`);

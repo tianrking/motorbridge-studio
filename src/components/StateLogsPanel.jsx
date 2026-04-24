@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useI18n } from '../i18n';
-import { useMotorStudioContext } from '../hooks/useMotorStudioContext';
+import { useLogsContext, usePreferencesContext } from '../hooks/useMotorStudioContext';
 
 function downloadText(filename, text) {
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
@@ -14,7 +14,8 @@ function downloadText(filename, text) {
 
 export function StateLogsPanel() {
   const { t } = useI18n();
-  const { stateSnapshot, logs, clearLogs, uiPrefs, toggleUiPref } = useMotorStudioContext();
+  const { stateSnapshot, logs, clearLogs } = useLogsContext();
+  const { uiPrefs, toggleUiPref } = usePreferencesContext();
   const stateCollapsed = uiPrefs.sectionStateCollapsed;
   const logsCollapsed = uiPrefs.sectionLogsCollapsed;
   const [levelFilter, setLevelFilter] = useState('all');

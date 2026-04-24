@@ -3,7 +3,7 @@ import { VENDORS, VENDOR_LABELS } from '../lib/constants';
 import { useI18n } from '../i18n';
 import { ProgressBar } from './ProgressBar';
 import { CollapsibleSection } from './CollapsibleSection';
-import { useMotorStudioContext } from '../hooks/useMotorStudioContext';
+import { useConnectionContext, usePreferencesContext, useScanContext } from '../hooks/useMotorStudioContext';
 
 function setVendorField(setVendors, vendor, field, value) {
   setVendors((prev) => ({
@@ -14,11 +14,11 @@ function setVendorField(setVendors, vendor, field, value) {
 
 export function ScanWorkspace() {
   const { t } = useI18n();
+  const { connected, canAction } = useConnectionContext();
+  const { uiPrefs, toggleUiPref } = usePreferencesContext();
   const {
     vendors,
     setVendors,
-    connected,
-    canAction,
     scanBusy,
     scanProgress,
     scanFoundFx,
@@ -27,9 +27,7 @@ export function ScanWorkspace() {
     manualDraft,
     setManualDraft,
     addManualCard,
-    uiPrefs,
-    toggleUiPref,
-  } = useMotorStudioContext();
+  } = useScanContext();
   const scanCollapsed = uiPrefs.sectionScanCollapsed;
   const manualCollapsed = uiPrefs.sectionManualCollapsed;
   return (

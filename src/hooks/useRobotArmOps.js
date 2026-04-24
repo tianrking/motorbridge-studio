@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { bulkOp, sleep } from '../lib/async';
 import { DAMIAO_ARM_PARAM_DEFS } from '../lib/appConfig';
+import { modelForHit } from '../lib/motorStudioOps';
 import { defaultControlsForHit, getResponseValue, motorKey } from '../lib/utils';
 import { useRobotArmStudio } from './useRobotArmStudio';
 
@@ -73,7 +74,7 @@ export function useRobotArmOps({
       throw new Error('read control params is damiao-only');
     }
 
-    await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
     try {
       const values = {};
       for (const def of readDefs) {
@@ -96,7 +97,7 @@ export function useRobotArmOps({
     if (!h || String(h.vendor) !== 'damiao') {
       throw new Error('write control params is damiao-only');
     }
-    await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
     try {
       for (const def of writeDefs) {
         if (!(def.key in values)) continue;

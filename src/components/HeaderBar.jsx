@@ -1,10 +1,11 @@
 import React from 'react';
 import { useI18n } from '../i18n';
-import { useMotorStudioContext } from '../hooks/useMotorStudioContext';
+import { useConnectionContext, useWorkspaceContext } from '../hooks/useMotorStudioContext';
 
 export function HeaderBar() {
   const { t, locale, setLocale } = useI18n();
-  const { connected, connText, setMenuOpen } = useMotorStudioContext();
+  const { connected, connText } = useConnectionContext();
+  const { setMenuOpen } = useWorkspaceContext();
   const logoUrl = 'https://www.mouser.ca/images/suppliers/logos/seeed-studio.png';
 
   return (

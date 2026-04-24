@@ -29,6 +29,10 @@ function sleepMs(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function modelForHit(h, vendors) {
+  return h?.model || vendors?.[h?.vendor]?.model || h?.vendor;
+}
+
 function clampMitForSafety(h, mode, target, kp, kd, tau) {
   if (String(mode) !== 'mit') {
     return { target, kp, kd, tau, notes: [] };
@@ -87,7 +91,7 @@ function clampMitForSafety(h, mode, target, kp, kd, tau) {
 
 export async function verifyHitOp({ h, vendors, setTargetFor, sendCmd, setHits, closeBusQuietly, pushLog }) {
   try {
-    await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
     const ret = await sendCmd(
       'verify',
       {
@@ -132,7 +136,7 @@ export async function setIdForOp({ h, controls, vendors, setTargetFor, sendCmd, 
   }
 
   try {
-    await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
     const payload = buildSetIdPayload(h.vendor, h, newEsc, newMst);
     const ret = await sendCmd('set_id', payload, CMD_TIMEOUTS.setIdMs);
     if (!ret.ok) {
@@ -168,7 +172,7 @@ export async function controlMotorOp({
   const ratio = parseNum(c.ratio, 0.1);
 
   try {
-    await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
 
     if (action === 'enable' || action === 'disable' || action === 'stop' || action === 'clear_error') {
       const ret = await sendCmd(action, { vendor: h.vendor }, CMD_TIMEOUTS.controlMs);
@@ -256,7 +260,7 @@ export async function zeroMotorOp({
   }
 
   try {
-    await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
 
     const zeroRet = await sendCmd('set_zero_position', { vendor: h.vendor }, CMD_TIMEOUTS.controlMs);
     if (!zeroRet.ok) throw new Error(zeroRet.error || 'set_zero_position failed');
@@ -282,7 +286,7 @@ export async function zeroMotorOp({
 
 export async function refreshMotorStateOp({ h, vendors, setTargetFor, sendCmd, setHits, pushLog }) {
   try {
-    await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
     const ret = await sendCmd('state_once', {}, CMD_TIMEOUTS.stateMs);
     if (!ret.ok) throw new Error(ret.error || 'state_once failed');
 
@@ -356,7 +360,7 @@ export async function checkOnlineOnceOp({
   silent = true,
 }) {
   try {
-    await setTargetFor(h.vendor, h.model || vendors[h.vendor].model, h.esc_id, h.mst_id);
+    await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
     const ret = await sendCmd('state_once', {}, 1200);
     if (!ret.ok) throw new Error(ret.error || 'state_once failed');
 
@@ -414,7 +418,7 @@ export async function probeMotorOp({
   pushLog,
 }) {
   try {
-    const model = h.model || vendors[h.vendor]?.model || h.vendor;
+    const model = modelForHit(h, vendors);
     await setTargetFor(h.vendor, model, h.esc_id, h.mst_id);
 
     const payload = buildProbePayload(h.vendor, h.esc_id, h.mst_id);

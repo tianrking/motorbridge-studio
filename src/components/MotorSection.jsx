@@ -3,14 +3,15 @@ import { MotorCards } from './MotorCards';
 import { MotorDetailPanel } from './MotorDetailPanel';
 import { useI18n } from '../i18n';
 import { CollapsibleSection } from './CollapsibleSection';
-import { useMotorStudioContext } from '../hooks/useMotorStudioContext';
+import { useConnectionContext, useControlContext, usePreferencesContext, useScanContext } from '../hooks/useMotorStudioContext';
 
 export function MotorSection() {
   const { t } = useI18n();
+  const { connected } = useConnectionContext();
+  const { uiPrefs, toggleUiPref } = usePreferencesContext();
   const {
     hits,
     selectedHits,
-    connected,
     activeMotorKey,
     setActiveMotorKey,
     newCardKeys,
@@ -21,6 +22,8 @@ export function MotorSection() {
     moveMotorCard,
     activeMotor,
     activeControl,
+  } = useScanContext();
+  const {
     patchControl,
     controlMotor,
     zeroMotor,
@@ -29,9 +32,7 @@ export function MotorSection() {
     verifyHit,
     refreshMotorState,
     runMotorOp,
-    uiPrefs,
-    toggleUiPref,
-  } = useMotorStudioContext();
+  } = useControlContext();
   const collapsed = uiPrefs.sectionMotorsCollapsed;
 
   const [search, setSearch] = useState('');

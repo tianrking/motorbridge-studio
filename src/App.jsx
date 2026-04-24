@@ -24,7 +24,7 @@ export default function App() {
         <BrandWatermark />
         <HeaderBar />
 
-        {studio.menuOpen && <QuickMenu />}
+        {studio.workspace.menuOpen && <QuickMenu />}
 
         <section className="card glass">
           <div className="row toolbar compactToolbar">

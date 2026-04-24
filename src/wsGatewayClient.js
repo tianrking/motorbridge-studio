@@ -12,6 +12,20 @@ export class WsGatewayClient {
     this.onMessage = onMessage;
   }
 
+  rejectPending(reason = 'ws closed') {
+    const err = reason instanceof Error ? reason : new Error(reason);
+    const pending = new Set(this.pendingByReqId.values());
+    this.pendingLegacyQueue.forEach((p) => pending.add(p));
+
+    pending.forEach((p) => {
+      clearTimeout(p.timer);
+      p.reject(err);
+    });
+
+    this.pendingByReqId.clear();
+    this.pendingLegacyQueue = [];
+  }
+
   isConnected() {
     return this.ws && this.ws.readyState === WebSocket.OPEN;
   }
@@ -25,17 +39,7 @@ export class WsGatewayClient {
     };
 
     this.ws.onclose = () => {
-      for (const p of this.pendingByReqId.values()) {
-        clearTimeout(p.timer);
-        p.reject(new Error('ws closed'));
-      }
-      this.pendingByReqId.clear();
-
-      while (this.pendingLegacyQueue.length) {
-        const p = this.pendingLegacyQueue.shift();
-        clearTimeout(p.timer);
-        p.reject(new Error('ws closed'));
-      }
+      this.rejectPending('ws closed');
       this.onClose?.();
     };
 
@@ -84,6 +88,7 @@ export class WsGatewayClient {
   }
 
   disconnect() {
+    this.rejectPending('ws disconnected');
     if (this.ws) {
       try {
         this.ws.close();

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useI18n } from '../i18n';
 import { CollapsibleSection } from './CollapsibleSection';
-import { useMotorStudioContext } from '../hooks/useMotorStudioContext';
+import { useConnectionContext, usePreferencesContext } from '../hooks/useMotorStudioContext';
 
 export function ConnectionPanel() {
   const { t } = useI18n();
@@ -16,9 +16,8 @@ export function ConnectionPanel() {
     setScanTimeoutMs,
     connectWs,
     disconnectWs,
-    uiPrefs,
-    toggleUiPref,
-  } = useMotorStudioContext();
+  } = useConnectionContext();
+  const { uiPrefs, toggleUiPref } = usePreferencesContext();
   const collapsed = uiPrefs.sectionConnectionCollapsed;
   const onToggleCollapsed = () => toggleUiPref('sectionConnectionCollapsed');
   const isDmSerial = String(targetTransport || '').trim().toLowerCase() === 'dm-serial';
