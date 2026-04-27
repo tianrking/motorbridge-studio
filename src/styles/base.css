@@ -19,6 +19,7 @@ body {
   margin: 0;
   color: var(--text);
   font-family: 'Avenir Next', 'Segoe UI', 'PingFang SC', 'Noto Sans CJK SC', sans-serif;
+  overflow-x: hidden;
   background:
     radial-gradient(1200px 400px at 10% -10%, #d7e5ff 0%, transparent 60%),
     radial-gradient(900px 420px at 90% -20%, #ffe3cf 0%, transparent 65%),
