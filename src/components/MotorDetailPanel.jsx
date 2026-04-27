@@ -457,7 +457,7 @@ export function MotorDetailPanel({
                     runOp(async () => {
                       const ret = await runMotorOp(activeMotor, 'robstride_read_param', {
                         param_id: rsParamId,
-                        param_type: rsParamType,
+                        type: rsParamType,
                         timeout_ms: 200,
                       });
                       setRsReadValue(String(getResponseValue(ret) ?? ''));
@@ -469,14 +469,20 @@ export function MotorDetailPanel({
                 <button
                   disabled={!connected || opBusy || !selectedParamWritable || !selectedParamTypeSupported}
                   onClick={() =>
-                    runOp(() =>
-                      runMotorOp(activeMotor, 'robstride_write_param', {
+                    runOp(async () => {
+                      await runMotorOp(activeMotor, 'robstride_write_param', {
                         param_id: rsParamId,
-                        param_type: rsParamType,
+                        type: rsParamType,
                         value: rsParamValue,
                         timeout_ms: 200,
-                      }),
-                    )
+                      });
+                      const verifyRead = await runMotorOp(activeMotor, 'robstride_read_param', {
+                        param_id: rsParamId,
+                        type: rsParamType,
+                        timeout_ms: 200,
+                      });
+                      setRsReadValue(String(getResponseValue(verifyRead) ?? ''));
+                    })
                   }
                 >
                   {t('write_param')}
@@ -488,6 +494,9 @@ export function MotorDetailPanel({
               )}
               {!selectedParamWritable && (
                 <div className="tip">This parameter is marked Read-Only in catalog; write is disabled.</div>
+              )}
+              {selectedRobstrideParam?.id === 0x200A && (
+                <div className="tip">CAN_ID (0x200A): prefer using the dedicated &quot;Set ID&quot; button for reliable ID change workflow.</div>
               )}
             </>
           )}

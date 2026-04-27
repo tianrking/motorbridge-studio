@@ -14,6 +14,7 @@ import { buildScanPayloadExtras, getVendorModels, getVendorScanDefaults } from '
 export async function runScanOp({
   connected,
   scanBusy,
+  scanBusyRef,
   setScanBusy,
   vendors,
   scanTimeoutMs,
@@ -41,6 +42,10 @@ export async function runScanOp({
     pushLog('scan ignored: previous scan still running', 'err');
     return;
   }
+  if (scanBusyRef?.current) {
+    pushLog('scan ignored: previous scan still running', 'err');
+    return;
+  }
 
   const activeVendors = vendorList || VENDORS.filter((v) => vendors[v].enabled);
   if (activeVendors.length === 0) {
@@ -48,6 +53,7 @@ export async function runScanOp({
     return;
   }
 
+  if (scanBusyRef) scanBusyRef.current = true;
   setScanBusy(true);
   setScanProgress({ active: true, done: 0, total: 0, label: tr('scanning', 'scanning...'), percent: 0 });
 
@@ -267,6 +273,7 @@ export async function runScanOp({
   } catch (e) {
     pushLog(`scan error: ${e.message || e}`, 'err');
   } finally {
+    if (scanBusyRef) scanBusyRef.current = false;
     setScanBusy(false);
     setTimeout(() => {
       setScanProgress((prev) => ({ ...prev, active: false }));

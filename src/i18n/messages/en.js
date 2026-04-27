@@ -341,6 +341,7 @@ export const en = {
   close: 'Close',
   cancel: 'Cancel',
   confirm: 'Confirm',
+  confirm_dialog_title: 'Please confirm',
   ok: 'OK',
 
   confirm_clear_all: 'Clear all motor cards and local cache?',

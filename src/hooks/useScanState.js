@@ -17,6 +17,7 @@ export function useScanState({
   sendCmd,
 }) {
   const [scanBusy, setScanBusy] = useState(false);
+  const scanBusyRef = useRef(false);
   const [scanProgress, setScanProgress] = useState({
     active: false,
     done: 0,
@@ -33,6 +34,13 @@ export function useScanState({
     mstId: '0x15',
   });
   const [newCardKeys, setNewCardKeys] = useState(new Set());
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    message: '',
+    danger: false,
+  });
+  const confirmResolverRef = useRef(null);
   const cardRefs = useRef({});
 
   useEffect(() => {
@@ -47,9 +55,44 @@ export function useScanState({
     return () => clearTimeout(timer);
   }, [scanFoundFx]);
 
-  const clearDevices = () => {
-    const ok = typeof window === 'undefined' ? true : window.confirm(t('confirm_clear_all'));
-    if (!ok) return;
+  useEffect(
+    () => () => {
+      const resolve = confirmResolverRef.current;
+      confirmResolverRef.current = null;
+      if (resolve) resolve(false);
+    },
+    [],
+  );
+
+  const closeConfirmDialog = (result) => {
+    const resolve = confirmResolverRef.current;
+    confirmResolverRef.current = null;
+    setConfirmDialog((prev) => ({ ...prev, open: false }));
+    if (resolve) resolve(Boolean(result));
+  };
+
+  const askConfirm = ({ title, message, danger = false }) =>
+    new Promise((resolve) => {
+      if (typeof window === 'undefined') {
+        resolve(true);
+        return;
+      }
+      confirmResolverRef.current = resolve;
+      setConfirmDialog({
+        open: true,
+        title: String(title || ''),
+        message: String(message || ''),
+        danger: Boolean(danger),
+      });
+    });
+
+  const clearDevices = async () => {
+    const ok = await askConfirm({
+      title: t('confirm_dialog_title'),
+      message: t('confirm_clear_all'),
+      danger: true,
+    });
+    if (!ok) return false;
     setHits([]);
     setControls({});
     setActiveMotorKey('');
@@ -62,19 +105,21 @@ export function useScanState({
     } catch {
       // ignore localStorage failures
     }
+    return true;
   };
 
-  const clearOfflineMotors = (hits, setSelected) => {
+  const clearOfflineMotors = async (hits, setSelected) => {
     const offlineHits = hits.filter((h) => h.online === false);
     if (offlineHits.length === 0) {
       pushLog(t('log_no_offline_motors'), 'info');
-      return;
+      return false;
     }
-    const ok =
-      typeof window === 'undefined'
-        ? true
-        : window.confirm(t('confirm_clear_offline', { count: offlineHits.length }));
-    if (!ok) return;
+    const ok = await askConfirm({
+      title: t('confirm_dialog_title'),
+      message: t('confirm_clear_offline', { count: offlineHits.length }),
+      danger: true,
+    });
+    if (!ok) return false;
     const offlineKeys = new Set(offlineHits.map((h) => motorKey(h)));
     setHits((prev) => prev.filter((h) => h.online !== false));
     setControls((prev) => {
@@ -89,20 +134,20 @@ export function useScanState({
     });
     setActiveMotorKey((prev) => (prev && offlineKeys.has(prev) ? '' : prev));
     pushLog(t('log_offline_cleared', { count: offlineHits.length }), 'ok');
+    return true;
   };
 
-  const removeMotorCard = (hit, setSelected) => {
-    const ok =
-      typeof window === 'undefined'
-        ? true
-        : window.confirm(
-            t('confirm_delete_card', {
-              vendor: hit.vendor,
-              esc: toHex(hit.esc_id),
-              mst: toHex(hit.mst_id),
-            })
-          );
-    if (!ok) return;
+  const removeMotorCard = async (hit, setSelected) => {
+    const ok = await askConfirm({
+      title: t('confirm_dialog_title'),
+      message: t('confirm_delete_card', {
+        vendor: hit.vendor,
+        esc: toHex(hit.esc_id),
+        mst: toHex(hit.mst_id),
+      }),
+      danger: true,
+    });
+    if (!ok) return false;
     const key = motorKey(hit);
     setHits((prev) => prev.filter((x) => motorKey(x) !== key));
     setControls((prev) => {
@@ -117,6 +162,7 @@ export function useScanState({
     });
     setActiveMotorKey((prev) => (prev === key ? '' : prev));
     pushLog(t('log_card_removed', { vendor: hit.vendor, key }), 'ok');
+    return true;
   };
 
   const moveMotorCard = (fromKey, toKey) => {
@@ -172,6 +218,7 @@ export function useScanState({
     runScanOp({
       connected,
       scanBusy,
+      scanBusyRef,
       setScanBusy,
       vendors,
       scanTimeoutMs,
@@ -206,6 +253,8 @@ export function useScanState({
     manualDraft,
     setManualDraft,
     newCardKeys,
+    confirmDialog,
+    closeConfirmDialog,
     cardRefs,
     runScan,
     clearDevices,
@@ -213,5 +262,6 @@ export function useScanState({
     removeMotorCard,
     moveMotorCard,
     addManualCard,
+    askConfirm,
   };
 }

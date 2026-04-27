@@ -150,7 +150,17 @@ export async function verifyHitOp({ h, vendors, setTargetFor, sendCmd, setHits, 
   }
 }
 
-export async function setIdForOp({ h, controls, vendors, setTargetFor, sendCmd, closeBusQuietly, pushLog }) {
+export async function setIdForOp({
+  h,
+  controls,
+  vendors,
+  setTargetFor,
+  sendCmd,
+  setHits,
+  setControls,
+  closeBusQuietly,
+  pushLog,
+}) {
   const c = controls[motorKey(h)] || defaultControlsForHit(h);
   const newEsc = parseNum(c.newEsc, h.esc_id);
   const newMst = parseNum(c.newMst, h.mst_id);
@@ -168,6 +178,38 @@ export async function setIdForOp({ h, controls, vendors, setTargetFor, sendCmd, 
       pushLog(`set-id ${h.vendor} failed: ${ret.error || 'unknown'}`, 'err');
     } else {
       pushLog(`set-id ${h.vendor} ok: ${toHex(newEsc)} / ${toHex(newMst)}`, 'ok');
+      const nextMst = String(h.vendor) === 'robstride' ? h.mst_id : newMst;
+      const nextHit = {
+        ...h,
+        esc_id: newEsc,
+        mst_id: nextMst,
+        probe: newEsc,
+        updated_at_ms: Date.now(),
+      };
+      if (typeof setHits === 'function') {
+        setHits((prev) => {
+          const oldKey = motorKey(h);
+          const next = prev.filter((x) => motorKey(x) !== oldKey);
+          return mergeHitsByVendor(next, [nextHit]);
+        });
+      }
+      if (typeof setControls === 'function') {
+        const oldKey = motorKey(h);
+        const nextKey = motorKey(nextHit);
+        setControls((prev) => {
+          const next = { ...prev };
+          const oldControl = next[oldKey];
+          if (oldControl) {
+            delete next[oldKey];
+            next[nextKey] = {
+              ...oldControl,
+              newEsc,
+              newMst: nextMst,
+            };
+          }
+          return next;
+        });
+      }
     }
     await closeBusQuietly();
   } catch (e) {

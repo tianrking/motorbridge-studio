@@ -8,6 +8,7 @@ import { MotorSection } from './components/MotorSection';
 import { StateLogsPanel } from './components/StateLogsPanel';
 import { RobotArmPage } from './components/RobotArmPage';
 import { HelpCenterModal } from './components/HelpCenterModal';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { useMotorStudio } from './hooks/useMotorStudio';
 import { MotorStudioProvider } from './hooks/useMotorStudioContext';
 import { useI18n } from './i18n';
@@ -41,6 +42,14 @@ export default function App() {
         </section>
 
         <HelpCenterModal open={helpOpen} page={page} onClose={() => setHelpOpen(false)} />
+        <ConfirmDialog
+          open={Boolean(studio.scan?.confirmDialog?.open)}
+          title={studio.scan?.confirmDialog?.title}
+          message={studio.scan?.confirmDialog?.message}
+          danger={Boolean(studio.scan?.confirmDialog?.danger)}
+          onCancel={() => studio.scan?.closeConfirmDialog(false)}
+          onConfirm={() => studio.scan?.closeConfirmDialog(true)}
+        />
 
         <ConnectionPanel />
 

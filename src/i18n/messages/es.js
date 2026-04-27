@@ -341,6 +341,7 @@ export const es = {
   close: 'Cerrar',
   cancel: 'Cancelar',
   confirm: 'Confirmar',
+  confirm_dialog_title: 'Confirma la acción',
   ok: 'OK',
 
   confirm_clear_all: '¿Limpiar todas las tarjetas y la caché local?',

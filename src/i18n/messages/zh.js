@@ -340,6 +340,7 @@ export const zh = {
   close: '关闭',
   cancel: '取消',
   confirm: '确认',
+  confirm_dialog_title: '请确认操作',
   ok: '正常',
 
   confirm_clear_all: '确认清空所有电机卡片和本地缓存？',

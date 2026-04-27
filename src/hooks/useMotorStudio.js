@@ -65,6 +65,7 @@ export function useMotorStudio() {
     sendCmd: connectionState.sendCmd,
     closeBusQuietly: connectionState.closeBusQuietly,
     armBulkBusy: armBulkBusyForControl,
+    askConfirm: scanState.askConfirm,
   });
 
   const robotArmState = useRobotArmOps({
@@ -110,9 +111,9 @@ export function useMotorStudio() {
   const clearLogs = () => setLogs([]);
   const clearOfflineMotors = useCallback(() => scanState.clearOfflineMotors(hits, setSelected), [hits, scanState]);
   const removeMotorCard = useCallback((hit) => scanState.removeMotorCard(hit, setSelected), [scanState]);
-  const clearDevices = useCallback(() => {
-    scanState.clearDevices();
-    setSelected(new Set());
+  const clearDevices = useCallback(async () => {
+    const cleared = await scanState.clearDevices();
+    if (cleared) setSelected(new Set());
   }, [scanState]);
 
   const canAction = connectionState.connected && !scanState.scanBusy && !robotArmState.armBulkBusy;
@@ -153,6 +154,8 @@ export function useMotorStudio() {
       manualDraft: scanState.manualDraft,
       setManualDraft: scanState.setManualDraft,
       cardRefs: scanState.cardRefs,
+      confirmDialog: scanState.confirmDialog,
+      closeConfirmDialog: scanState.closeConfirmDialog,
       runScan: scanState.runScan,
       removeMotorCard,
       moveMotorCard: scanState.moveMotorCard,
