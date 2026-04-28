@@ -2,6 +2,7 @@ import React from 'react';
 import { ArmUrdfViewer } from '../../components/ArmUrdfViewer';
 
 const NAV_ITEMS = [
+  { key: 'plan', label: 'Plan Points' },
   { key: 'joint', label: 'Joint Control' },
   { key: 'trajectory', label: 'Trajectory' },
   { key: 'scene', label: 'Scene & View' },
@@ -43,6 +44,15 @@ function hslToRgbInt(h, s, l) {
 }
 
 const VIEWER_Y_OFFSET = 0.02;
+const PLAN_BOUNDS = {
+  xMin: -0.45, xMax: 0.45,
+  yMin: 0.02, yMax: 0.55,
+  zMin: -0.45, zMax: 0.45,
+};
+
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
 
 function backendToViewerPose(p) {
   const x = Number(p?.x || 0);
@@ -68,6 +78,18 @@ function viewerToBackendPose(p) {
   };
 }
 
+function clampViewerPose(p) {
+  return {
+    ...p,
+    x: clamp(Number(p?.x || 0), PLAN_BOUNDS.xMin, PLAN_BOUNDS.xMax),
+    y: clamp(Number(p?.y || 0), PLAN_BOUNDS.yMin, PLAN_BOUNDS.yMax),
+    z: clamp(Number(p?.z || 0), PLAN_BOUNDS.zMin, PLAN_BOUNDS.zMax),
+    roll: Number(p?.roll || 0),
+    pitch: Number(p?.pitch || 0),
+    yaw: Number(p?.yaw || 0),
+  };
+}
+
 export function SimuLeftNav({ state }) {
   return (
     <aside className="simu-left-nav">
@@ -89,14 +111,26 @@ export function SimuLeftNav({ state }) {
 }
 
 export function SimuViewport({ state }) {
-  const normalizedMarkers = state.waypointList.map((wp) => {
+  const normalizedMarkers = React.useMemo(() => state.waypointList.map((wp) => {
     const s = String(wp.id || '');
     let hash = 0;
     for (let i = 0; i < s.length; i += 1) hash = (hash * 33 + s.charCodeAt(i)) >>> 0;
     const hue = hash % 360;
     const pv = backendToViewerPose(wp);
-    return { id: wp.id, x: pv.x, y: pv.y, z: pv.z, color: hslToRgbInt(hue, 78, 54) };
-  });
+    return {
+      id: wp.id,
+      label: wp.label || wp.id,
+      x: pv.x,
+      y: pv.y,
+      z: pv.z,
+      color: hslToRgbInt(hue, 78, 54),
+    };
+  }), [state.waypointList]);
+  const previewMarker = React.useMemo(() => {
+    if (state.activeSection !== 'plan') return null;
+    const p = clampViewerPose(state.editPose);
+    return { id: 'preview', x: p.x, y: p.y, z: p.z, color: 0xffb020 };
+  }, [state.activeSection, state.editPose]);
   return (
     <main className="simu-center">
       <div className="simu-center-toolbar">
@@ -119,6 +153,32 @@ export function SimuViewport({ state }) {
             trailColor={state.trailColor}
             trailVisible={state.trailVisible}
             waypointMarkers={normalizedMarkers}
+            pickEnabled={state.pickMode}
+            pickPlaneY={clamp(Number(state.pickPlaneY || 0.18), PLAN_BOUNDS.yMin, PLAN_BOUNDS.yMax)}
+            pickBounds={PLAN_BOUNDS}
+            previewMarker={previewMarker}
+            onMarkerSelect={(id) => {
+              const wp = state.waypointList.find((x) => x.id === id);
+              if (wp) state.selectWaypoint(wp);
+            }}
+            onViewportClick={(p) => {
+              if (!state.pickMode) return;
+              state.setEditPose((prev) => ({
+                ...prev,
+                x: clamp(Number(p.x || 0), PLAN_BOUNDS.xMin, PLAN_BOUNDS.xMax),
+                y: clamp(Number(p.y || 0), PLAN_BOUNDS.yMin, PLAN_BOUNDS.yMax),
+                z: clamp(Number(p.z || 0), PLAN_BOUNDS.zMin, PLAN_BOUNDS.zMax),
+              }));
+            }}
+            onPreviewDrag={(p) => {
+              if (!state.pickMode) return;
+              state.setEditPose((prev) => ({
+                ...prev,
+                x: clamp(Number(p.x ?? prev.x), PLAN_BOUNDS.xMin, PLAN_BOUNDS.xMax),
+                y: clamp(Number(p.y ?? prev.y), PLAN_BOUNDS.yMin, PLAN_BOUNDS.yMax),
+                z: clamp(Number(p.z ?? prev.z), PLAN_BOUNDS.zMin, PLAN_BOUNDS.zMax),
+              }));
+            }}
           />
         </div>
       </div>
@@ -258,93 +318,60 @@ function ScenePanel({ state }) {
   );
 }
 
-function BridgePanel({ state, bridge }) {
+function PlanPanel({ state, bridge }) {
   const [busy, setBusy] = React.useState(false);
-  const waypoints = bridge.latestState?.waypoints || {};
-  const motion = bridge.latestState?.motion || {};
   const pose = bridge.latestState?.pose || {};
   const poseViewer = backendToViewerPose(pose);
+  const labelById = React.useMemo(() => {
+    const out = new Map();
+    state.waypointList.forEach((wp) => out.set(wp.id, wp.label || wp.id));
+    return out;
+  }, [state.waypointList]);
 
-  const addCurrentPoseWaypoint = async () => {
+  const setBoundedField = (k, v) => {
+    const raw = Number(v);
+    let next = Number.isFinite(raw) ? raw : 0;
+    if (k === 'x') next = clamp(next, PLAN_BOUNDS.xMin, PLAN_BOUNDS.xMax);
+    if (k === 'y') next = clamp(next, PLAN_BOUNDS.yMin, PLAN_BOUNDS.yMax);
+    if (k === 'z') next = clamp(next, PLAN_BOUNDS.zMin, PLAN_BOUNDS.zMax);
+    state.setEditPoseField(k, next);
+  };
+
+  const addPoint = async () => {
     const id = String(state.waypointId || '').trim();
     if (!id) return;
     setBusy(true);
     try {
-      await bridge.addWaypoint(id, {
-        x: Number(pose.x || 0),
-        y: Number(pose.y || 0),
-        z: Number(pose.z || 0),
-        roll: Number(pose.roll || 0),
-        pitch: Number(pose.pitch || 0),
-        yaw: Number(pose.yaw || 0),
-      });
+      const bounded = clampViewerPose(state.editPose);
+      state.setEditPose(bounded);
+      await bridge.addWaypoint(id, viewerToBackendPose(bounded), String(state.waypointLabel || id).trim() || id);
       state.setSelectedWaypointId(id);
+      state.addToSequence(id);
     } finally {
       setBusy(false);
     }
   };
 
-  const updateWaypoint = async () => {
+  const updatePoint = async () => {
     const id = String(state.waypointId || '').trim();
     if (!id) return;
     setBusy(true);
     try {
-      await bridge.updateWaypoint(id, viewerToBackendPose(state.editPose));
+      const bounded = clampViewerPose(state.editPose);
+      state.setEditPose(bounded);
+      await bridge.updateWaypoint(id, viewerToBackendPose(bounded), String(state.waypointLabel || id).trim() || id);
     } finally {
       setBusy(false);
     }
   };
 
-  const runFromTo = async () => {
+  const runSequence = async () => {
+    if (!state.sequenceIds || state.sequenceIds.length < 2) return;
+    const compactIds = state.sequenceIds.filter((id, idx, arr) => idx === 0 || id !== arr[idx - 1]);
+    if (compactIds.length < 2) return;
     setBusy(true);
     try {
-      await bridge.runWaypoints(
-        state.runFromId,
-        state.runToId,
-        Number(state.runDuration || 2.0),
-        state.runProfile || 'min_jerk',
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const loadTestWaypoints = async () => {
-    setBusy(true);
-    try {
-      const base = {
-        x: Number(pose.x || 0.30),
-        y: Number(pose.y || 0.00),
-        z: Number(pose.z || 0.22),
-        roll: Number(pose.roll || 0),
-        pitch: Number(pose.pitch || 0),
-        yaw: Number(pose.yaw || 0),
-      };
-      const pts = [
-        ['P1', { ...base }],
-        ['P2', { ...base, y: base.y + 0.10, z: base.z + 0.02 }],
-        ['P3', { ...base, y: base.y - 0.10, z: base.z + 0.03 }],
-        ['P4', { ...base, x: base.x + 0.08, z: base.z + 0.01 }],
-        ['P5', { ...base, x: base.x - 0.08, z: base.z + 0.01 }],
-      ];
-      for (const [id, p] of pts) {
-        // sequential on purpose, keeps server state/events ordered for debug
-        // eslint-disable-next-line no-await-in-loop
-        await bridge.addWaypoint(id, p);
-      }
-      state.setRunFromId('P1');
-      state.setRunToId('P2');
-      state.setWaypointId('P1');
-      state.setSelectedWaypointId('P1');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const stopNow = async () => {
-    setBusy(true);
-    try {
-      await bridge.stopMotion();
+      await bridge.runSequence(compactIds, Number(state.runDuration || 2.0), state.runProfile || 'min_jerk');
     } finally {
       setBusy(false);
     }
@@ -352,106 +379,138 @@ function BridgePanel({ state, bridge }) {
 
   return (
     <>
+      <div className="simu-panel-title">Plan Points</div>
+      <div className="simu-card">
+        <div className="simu-panel-actions">
+          <button className={`ghostBtn small ${state.pickMode ? 'active' : ''}`} onClick={() => state.setPickMode(!state.pickMode)}>
+            {state.pickMode ? 'Picking On' : 'Enter Pick Mode'}
+          </button>
+          <button className="ghostBtn small" onClick={() => state.setEditPoseFromCurrent(poseViewer)}>Use Current Pose</button>
+          <button className="ghostBtn small" onClick={() => state.setClearTrailSeq((x) => x + 1)}>Clear Trail</button>
+        </div>
+        <label className="simu-field">
+          <span>Pick Height Y ({Number(state.pickPlaneY || 0).toFixed(3)})</span>
+          <input className="simu-range" type="range" min={PLAN_BOUNDS.yMin} max={PLAN_BOUNDS.yMax} step={0.005} value={state.pickPlaneY} onChange={(e) => state.setPickPlaneY(Number(e.target.value))} />
+        </label>
+        <div className="simu-note">3D pick volume: X[{PLAN_BOUNDS.xMin},{PLAN_BOUNDS.xMax}] Y[{PLAN_BOUNDS.yMin},{PLAN_BOUNDS.yMax}] Z[{PLAN_BOUNDS.zMin},{PLAN_BOUNDS.zMax}]</div>
+      </div>
+      <div className="simu-card">
+        <div className="simu-point-meta-grid">
+          <label className="simu-field">
+            <span>Point ID</span>
+            <input className="simu-ws-input" value={state.waypointId} onChange={(e) => state.setWaypointId(e.target.value)} placeholder="P1" />
+          </label>
+          <label className="simu-field">
+            <span>Point Name</span>
+            <input className="simu-ws-input" value={state.waypointLabel} onChange={(e) => state.setWaypointLabel(e.target.value)} placeholder="Pick/place point" />
+          </label>
+        </div>
+        <div className="simu-field-group-title">XYZ</div>
+        <div className="simu-grid3">
+          {['x', 'y', 'z'].map((k) => (
+            <label className="simu-field compact" key={k}>
+              <span>{k}</span>
+              <input className="simu-ws-input compact" type="number" step="0.001" value={state.editPose[k]} onChange={(e) => setBoundedField(k, e.target.value)} />
+            </label>
+          ))}
+        </div>
+        <div className="simu-field-group-title">RPY</div>
+        <div className="simu-grid3">
+          {['roll', 'pitch', 'yaw'].map((k) => (
+            <label className="simu-field" key={k}>
+              <span>{k}</span>
+              <input className="simu-ws-input compact" type="number" step="0.001" value={state.editPose[k]} onChange={(e) => setBoundedField(k, e.target.value)} />
+            </label>
+          ))}
+        </div>
+        <div className="simu-panel-actions">
+          <button className="ghostBtn small" disabled={busy} onClick={addPoint}>Add Point</button>
+          <button className="ghostBtn small" disabled={busy} onClick={updatePoint}>Update Point</button>
+          <button className="ghostBtn small" disabled={busy} onClick={() => bridge.removeWaypoint(state.waypointId)}>Delete Point</button>
+          <button className="ghostBtn small" disabled={busy} onClick={bridge.clearWaypoints}>Clear Points</button>
+        </div>
+      </div>
+      <div className="simu-card">
+        <div className="simu-panel-title">Point List</div>
+        <div className="simu-waypoint-list">
+          {state.waypointList.map((wp) => (
+            <div
+              key={wp.id}
+              className={`simu-waypoint-item ${state.selectedWaypointId === wp.id ? 'active' : ''}`}
+              onClick={() => state.selectWaypoint(wp)}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="simu-waypoint-dot" style={{ background: waypointColor(wp.id) }} />
+              <span className="simu-waypoint-label">
+                <strong>{wp.id}</strong>
+                <small>{wp.label || wp.id}</small>
+              </span>
+              <span>{wp.x.toFixed(3)}, {wp.y.toFixed(3)}, {wp.z.toFixed(3)}</span>
+              <button className="ghostBtn small" onClick={(e) => { e.stopPropagation(); state.addToSequence(wp.id); }}>+Seq</button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="simu-card">
+        <div className="simu-panel-title">Execution Order</div>
+        <label className="simu-field">
+          <span>Duration (s)</span>
+          <input className="simu-ws-input" type="number" min={0.2} step={0.1} value={state.runDuration} onChange={(e) => state.setRunDuration(Number(e.target.value))} />
+        </label>
+        <label className="simu-field">
+          <span>Interpolation</span>
+          <select className="simu-ws-input" value={state.runProfile} onChange={(e) => state.setRunProfile(e.target.value)}>
+            <option value="min_jerk">min_jerk</option>
+            <option value="linear">linear</option>
+            <option value="geodesic">geodesic</option>
+          </select>
+        </label>
+        <div className="simu-waypoint-list">
+          {state.sequenceIds.map((id) => (
+            <div className="simu-waypoint-item active" key={`seq-${id}`}>
+              <span className="simu-waypoint-dot" style={{ background: waypointColor(id) }} />
+              <span className="simu-waypoint-label">
+                <strong>{id}</strong>
+                <small>{labelById.get(id) || id}</small>
+              </span>
+              <div className="simu-inline-actions">
+                <button className="ghostBtn small" onClick={() => state.moveSequenceUp(id)}>Up</button>
+                <button className="ghostBtn small" onClick={() => state.moveSequenceDown(id)}>Down</button>
+                <button className="ghostBtn small" onClick={() => state.removeFromSequence(id)}>Del</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="simu-panel-actions">
+          <button className="ghostBtn small" disabled={busy} onClick={runSequence}>Start Sequence</button>
+          <button className="ghostBtn small" disabled={busy} onClick={bridge.stopMotion}>Stop</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BridgePanel({ bridge }) {
+  const motion = bridge.latestState?.motion || {};
+  return (
+    <>
       <div className="simu-panel-title">WS Bridge</div>
       <div className="simu-card">
-      <div className="simu-note">Top-right bar controls WS connect/sync.</div>
-      <div className="simu-note">Status: {bridge.phaseLabel}</div>
-      <div className="simu-note">Message: {bridge.bridgeMsg}</div>
-      <div className="simu-note">Task Event: {bridge.taskEvent ? JSON.stringify(bridge.taskEvent.data) : 'none'}</div>
-      <div className="simu-note">Motion: {motion?.running ? `running (${motion?.name || 'task'})` : (motion?.name || 'idle')}</div>
-      <div className="simu-note">Coord: viewer(Y-up) ↔ backend(robot)</div>
-      <div className="simu-panel-actions">
-        <button className="ghostBtn small" onClick={bridge.clearHistory}>Clear WS History</button>
-      </div>
-      </div>
-
-      <div className="simu-card">
-      <div className="simu-panel-title">Waypoints</div>
-      <label className="simu-field">
-        <span>Waypoint ID</span>
-        <input
-          className="simu-ws-input"
-          value={state.waypointId}
-          onChange={(e) => state.setWaypointId(e.target.value)}
-          placeholder="P1"
-        />
-      </label>
-      <div className="simu-panel-actions">
-        <button className="ghostBtn small" disabled={busy} onClick={addCurrentPoseWaypoint}>Add From Current Pose</button>
-        <button className="ghostBtn small" disabled={busy} onClick={updateWaypoint}>Update Pose</button>
-        <button className="ghostBtn small" disabled={busy} onClick={() => bridge.removeWaypoint(state.waypointId)}>Remove</button>
-        <button className="ghostBtn small" disabled={busy} onClick={bridge.clearWaypoints}>Clear All</button>
-        <button className="ghostBtn small" disabled={busy} onClick={loadTestWaypoints}>Load Test Set</button>
-      </div>
-      <div className="simu-panel-actions">
-        <button className="ghostBtn small" disabled={busy} onClick={() => state.setEditPoseFromCurrent(poseViewer)}>Use Current Pose</button>
-      </div>
-      <div className="simu-grid6">
-        {['x', 'y', 'z', 'roll', 'pitch', 'yaw'].map((k) => (
-          <label className="simu-field" key={k}>
-            <span>{k}</span>
-            <input className="simu-ws-input" type="number" step="0.001" value={state.editPose[k]} onChange={(e) => state.setEditPoseField(k, Number(e.target.value))} />
-          </label>
-        ))}
-      </div>
-      <div className="simu-note">Current waypoints: {Object.keys(waypoints).length}</div>
-      <div className="simu-waypoint-list">
-        {state.waypointList.map((wp) => (
-          <button
-            key={wp.id}
-            className={`simu-waypoint-item ${state.selectedWaypointId === wp.id ? 'active' : ''}`}
-            onClick={() => state.selectWaypoint(wp)}
-          >
-            <span className="simu-waypoint-dot" style={{ background: waypointColor(wp.id) }} />
-            <span>{wp.id}</span>
-            <span>{wp.x.toFixed(3)}, {wp.y.toFixed(3)}, {wp.z.toFixed(3)}</span>
-          </button>
-        ))}
-      </div>
-      {Object.keys(waypoints).length > 0 && <pre className="simu-state-box">{JSON.stringify(waypoints, null, 2)}</pre>}
-      </div>
-
-      <div className="simu-card">
-      <div className="simu-panel-title">Run From-To</div>
-      <label className="simu-field">
-        <span>From ID</span>
-        <input className="simu-ws-input" value={state.runFromId} onChange={(e) => state.setRunFromId(e.target.value)} />
-      </label>
-      <label className="simu-field">
-        <span>To ID</span>
-        <input className="simu-ws-input" value={state.runToId} onChange={(e) => state.setRunToId(e.target.value)} />
-      </label>
-      <label className="simu-field">
-        <span>Duration (s)</span>
-        <input
-          className="simu-ws-input"
-          type="number"
-          min={0.2}
-          step={0.1}
-          value={state.runDuration}
-          onChange={(e) => state.setRunDuration(Number(e.target.value))}
-        />
-      </label>
-      <label className="simu-field">
-        <span>Interpolation</span>
-        <select className="simu-ws-input" value={state.runProfile} onChange={(e) => state.setRunProfile(e.target.value)}>
-          <option value="min_jerk">min_jerk</option>
-          <option value="linear">linear</option>
-          <option value="geodesic">geodesic</option>
-        </select>
-      </label>
-      <div className="simu-panel-actions">
-        <button className="ghostBtn small" disabled={busy} onClick={runFromTo}>Run Path</button>
-        <button className="ghostBtn small" disabled={busy} onClick={stopNow}>Emergency Stop</button>
+        <div className="simu-note">Status: {bridge.phaseLabel}</div>
+        <div className="simu-note">Message: {bridge.bridgeMsg}</div>
+        <div className="simu-note">Task Event: {bridge.taskEvent ? JSON.stringify(bridge.taskEvent.data) : 'none'}</div>
+        <div className="simu-note">Motion: {motion?.running ? `running (${motion?.name || 'task'})` : (motion?.name || 'idle')}</div>
+        <div className="simu-panel-actions">
+          <button className="ghostBtn small" onClick={bridge.clearHistory}>Clear WS History</button>
+          <button className="ghostBtn small" onClick={bridge.fetchBusSnapshot}>Bus Snapshot</button>
+        </div>
       </div>
       {Array.isArray(bridge.history) && bridge.history.length > 0 && (
-        <pre className="simu-state-box">
-          {JSON.stringify(bridge.history.slice(-20), null, 2)}
-        </pre>
+        <pre className="simu-state-box">{JSON.stringify(bridge.history.slice(-20), null, 2)}</pre>
       )}
       {bridge.latestState && <pre className="simu-state-box">{JSON.stringify(bridge.latestState, null, 2)}</pre>}
       {bridge.busSnapshot && <pre className="simu-state-box">{JSON.stringify(bridge.busSnapshot, null, 2)}</pre>}
-      </div>
     </>
   );
 }
@@ -459,10 +518,11 @@ function BridgePanel({ state, bridge }) {
 export function SimuRightPanel({ state, bridge }) {
   return (
     <aside className="simu-right-panel">
+      {state.activeSection === 'plan' && <PlanPanel state={state} bridge={bridge} />}
       {state.activeSection === 'joint' && <JointPanel state={state} />}
       {state.activeSection === 'trajectory' && <TrajectoryPanel state={state} />}
       {state.activeSection === 'scene' && <ScenePanel state={state} />}
-      {state.activeSection === 'bridge' && <BridgePanel state={state} bridge={bridge} />}
+      {state.activeSection === 'bridge' && <BridgePanel bridge={bridge} />}
     </aside>
   );
 }

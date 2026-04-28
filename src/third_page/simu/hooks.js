@@ -13,7 +13,7 @@ export function useSimuState() {
   const [replayStopSeq, setReplayStopSeq] = React.useState(0);
   const [trailColor, setTrailColor] = React.useState('#ff3b30');
   const [trailVisible, setTrailVisible] = React.useState(true);
-  const [activeSection, setActiveSection] = React.useState('joint');
+  const [activeSection, setActiveSection] = React.useState('plan');
   const [replaySpeed, setReplaySpeed] = React.useState(1);
   const [exportTrailSeq, setExportTrailSeq] = React.useState(0);
   const [replayFinishSeq, setReplayFinishSeq] = React.useState(0);
@@ -21,10 +21,14 @@ export function useSimuState() {
   const [syncToWs, setSyncToWs] = React.useState(false);
   const [followWsState, setFollowWsState] = React.useState(true);
   const [waypointId, setWaypointId] = React.useState('P1');
+  const [waypointLabel, setWaypointLabel] = React.useState('Point 1');
   const [runFromId, setRunFromId] = React.useState('P1');
   const [runToId, setRunToId] = React.useState('P2');
   const [runDuration, setRunDuration] = React.useState(2.0);
   const [runProfile, setRunProfile] = React.useState('min_jerk');
+  const [pickMode, setPickMode] = React.useState(false);
+  const [sequenceIds, setSequenceIds] = React.useState([]);
+  const [pickPlaneY, setPickPlaneY] = React.useState(0.18);
   const [selectedWaypointId, setSelectedWaypointId] = React.useState('');
   const [editPose, setEditPose] = React.useState({ x: 0, y: 0, z: 0, roll: 0, pitch: 0, yaw: 0 });
   const [presets, setPresets] = React.useState(() => {
@@ -187,6 +191,8 @@ export function useSimuState() {
     captureScreenshot,
     waypointId,
     setWaypointId,
+    waypointLabel,
+    setWaypointLabel,
     runFromId,
     setRunFromId,
     runToId,
@@ -195,6 +201,12 @@ export function useSimuState() {
     setRunDuration,
     runProfile,
     setRunProfile,
+    pickMode,
+    setPickMode,
+    pickPlaneY,
+    setPickPlaneY,
+    sequenceIds,
+    setSequenceIds,
     selectedWaypointId,
     setSelectedWaypointId,
     editPose,
@@ -204,6 +216,22 @@ export function useSimuState() {
       x: Number(p?.x || 0), y: Number(p?.y || 0), z: Number(p?.z || 0),
       roll: Number(p?.roll || 0), pitch: Number(p?.pitch || 0), yaw: Number(p?.yaw || 0),
     }),
+    moveSequenceUp: (id) => setSequenceIds((prev) => {
+      const i = prev.indexOf(id);
+      if (i <= 0) return prev;
+      const n = [...prev];
+      [n[i - 1], n[i]] = [n[i], n[i - 1]];
+      return n;
+    }),
+    moveSequenceDown: (id) => setSequenceIds((prev) => {
+      const i = prev.indexOf(id);
+      if (i < 0 || i >= prev.length - 1) return prev;
+      const n = [...prev];
+      [n[i + 1], n[i]] = [n[i], n[i + 1]];
+      return n;
+    }),
+    removeFromSequence: (id) => setSequenceIds((prev) => prev.filter((x) => x !== id)),
+    addToSequence: (id) => setSequenceIds((prev) => (prev.includes(id) ? prev : [...prev, id])),
     waypointList: [],
     selectWaypoint: () => {},
   };
@@ -267,8 +295,8 @@ export function useSimuBridge() {
     }
   }, [send]);
 
-  const addWaypoint = React.useCallback(async (id, pose) => {
-    return send('waypoint_add', { id, pose }, 2000);
+  const addWaypoint = React.useCallback(async (id, pose, label = '') => {
+    return send('waypoint_add', { id, pose, label }, 2000);
   }, [send]);
   const removeWaypoint = React.useCallback(async (id) => {
     return send('waypoint_remove', { id }, 2000);
@@ -276,11 +304,14 @@ export function useSimuBridge() {
   const clearWaypoints = React.useCallback(async () => {
     return send('waypoint_clear', {}, 2000);
   }, [send]);
-  const updateWaypoint = React.useCallback(async (id, pose) => {
-    return send('waypoint_update', { id, pose }, 2000);
+  const updateWaypoint = React.useCallback(async (id, pose, label = '') => {
+    return send('waypoint_update', { id, pose, label }, 2000);
   }, [send]);
   const runWaypoints = React.useCallback(async (fromId, toId, durationS, profile = 'min_jerk') => {
     return send('sim_run_waypoints', { from_id: fromId, to_id: toId, duration_s: durationS, profile }, 2500);
+  }, [send]);
+  const runSequence = React.useCallback(async (ids, durationS, profile = 'min_jerk') => {
+    return send('sim_run_sequence', { ids, duration_s: durationS, profile }, 3000);
   }, [send]);
   const stopMotion = React.useCallback(async () => {
     return send('sim_stop', {}, 1200);
@@ -321,6 +352,7 @@ export function useSimuBridge() {
     clearWaypoints,
     updateWaypoint,
     runWaypoints,
+    runSequence,
     stopMotion,
     clearHistory: () => setHistory([]),
     bridgeMsg,

@@ -14,10 +14,15 @@ function backendToViewerPose(p) {
 export function SimuPage() {
   const state = useSimuState();
   const bridge = useSimuBridge();
+  const waypointsSig = React.useMemo(
+    () => JSON.stringify(bridge.latestState?.waypoints || {}),
+    [bridge.latestState?.waypoints],
+  );
   const waypointList = React.useMemo(() => {
-    const w = bridge.latestState?.waypoints || {};
+    const w = JSON.parse(waypointsSig || '{}');
     return Object.entries(w).map(([id, p]) => ({
       id,
+      label: String(p?.label || p?.name || id),
       x: Number(p?.x || 0),
       y: Number(p?.y || 0),
       z: Number(p?.z || 0),
@@ -25,19 +30,29 @@ export function SimuPage() {
       pitch: Number(p?.pitch || 0),
       yaw: Number(p?.yaw || 0),
     }));
-  }, [bridge.latestState]);
+  }, [waypointsSig]);
   const enhancedState = {
     ...state,
     waypointList,
     selectWaypoint: (wp) => {
       state.setSelectedWaypointId(wp.id);
       state.setWaypointId(wp.id);
+      state.setWaypointLabel(wp.label || wp.id);
       const pv = backendToViewerPose(wp);
       state.setEditPose({
         x: pv.x, y: pv.y, z: pv.z, roll: wp.roll, pitch: wp.pitch, yaw: wp.yaw,
       });
     },
   };
+
+  React.useEffect(() => {
+    const ids = waypointList.map((w) => w.id);
+    state.setSequenceIds((prev) => {
+      const kept = prev.filter((id) => ids.includes(id));
+      const append = ids.filter((id) => !kept.includes(id));
+      return [...kept, ...append];
+    });
+  }, [waypointList]);
 
   React.useEffect(() => {
     if (!state.syncToWs || !bridge.connected) return;

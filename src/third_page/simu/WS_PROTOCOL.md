@@ -32,7 +32,9 @@ Server pushes periodic state:
     "q": [],
     "joint_targets": {},
     "pose": {},
-    "waypoints": {},
+    "waypoints": {
+      "P1": {"label":"Pick point","x":0.3,"y":0.0,"z":0.2,"roll":0.0,"pitch":0.0,"yaw":0.0}
+    },
     "motion": { "running": false, "name": "idle" },
     "ts": 0.0
   }
@@ -61,6 +63,7 @@ Server pushes periodic state:
 ```json
 {
   "id": "P1",
+  "label": "Pick point",
   "pose": {"x":0.3,"y":0.0,"z":0.2,"roll":0.0,"pitch":0.0,"yaw":0.0}
 }
 ```
@@ -71,13 +74,16 @@ Server pushes periodic state:
 ```json
 {
   "id": "P1",
+  "label": "Adjusted pick point",
   "pose": {"x":0.31,"y":0.00,"z":0.22,"roll":0.0,"pitch":0.0,"yaw":0.0}
 }
 ```
 - `waypoint_clear`
 - `waypoint_list`
 - `sim_run_waypoints`
-  - payload: `{ "from_id": "P1", "to_id": "P2", "duration_s": 2.0 }`
+  - payload: `{ "from_id": "P1", "to_id": "P2", "duration_s": 2.0, "profile": "min_jerk|linear|geodesic" }`
+- `sim_run_sequence`
+  - payload: `{ "ids": ["P1","P3","P2"], "duration_s": 2.0, "profile": "min_jerk|linear|geodesic" }`
 - `sim_stop`
   - immediate stop for currently running waypoint motion
 

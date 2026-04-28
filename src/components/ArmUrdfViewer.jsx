@@ -60,6 +60,66 @@ function interpolateJointMapValue(a, b, t) {
   return Object.keys(out).length ? out : null;
 }
 
+function disposeMaterial(material) {
+  if (!material) return;
+  const mats = Array.isArray(material) ? material : [material];
+  mats.forEach((m) => {
+    m?.map?.dispose?.();
+    m?.dispose?.();
+  });
+}
+
+function makeWaypointLabelSprite(text, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+  const label = String(text || '').slice(0, 32);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(12, 31, 63, 0.84)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+  ctx.lineWidth = 4;
+  const x = 14;
+  const y = 22;
+  const w = canvas.width - 28;
+  const h = canvas.height - 44;
+  const r = 32;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = `#${(Number(color || 0x3b82f6) >>> 0).toString(16).padStart(6, '0')}`;
+  ctx.beginPath();
+  ctx.arc(58, 80, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.font = '700 42px ui-sans-serif, system-ui, sans-serif';
+  ctx.fillStyle = '#f8fbff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, 92, 82);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.renderOrder = 1510;
+  sprite.userData = { labelText: label, labelColor: Number(color || 0x3b82f6) >>> 0 };
+  sprite.scale.set(0.18, 0.056, 1);
+  return sprite;
+}
+
 export function ArmUrdfViewer({
   jointTargets,
   resetViewSeq = 0,
@@ -76,6 +136,13 @@ export function ArmUrdfViewer({
   trailVisible = true,
   onReplayStateChange,
   waypointMarkers = [],
+  pickEnabled = false,
+  pickPlaneY = 0.18,
+  pickBounds = null,
+  previewMarker = null,
+  onMarkerSelect,
+  onViewportClick,
+  onPreviewDrag,
 }) {
   const hostRef = React.useRef(null);
   const robotRef = React.useRef(null);
@@ -99,13 +166,51 @@ export function ArmUrdfViewer({
   const replayBusyRef = React.useRef(false);
   const replaySpeedRef = React.useRef(Math.max(0.05, Number(replaySpeed) || 1));
   const onReplayStateChangeRef = React.useRef(onReplayStateChange);
+  const onViewportClickRef = React.useRef(onViewportClick);
+  const onPreviewDragRef = React.useRef(onPreviewDrag);
+  const onMarkerSelectRef = React.useRef(onMarkerSelect);
+  const pickEnabledRef = React.useRef(Boolean(pickEnabled));
+  const pickPlaneYRef = React.useRef(Number(pickPlaneY) || 0.18);
+  const pickBoundsRef = React.useRef(pickBounds);
+  const previewMarkerRef = React.useRef(previewMarker);
   const tmpWorldRef = React.useRef(new THREE.Vector3());
   const waypointGroupRef = React.useRef(null);
+  const waypointMeshMapRef = React.useRef(new Map());
+  const waypointLabelMapRef = React.useRef(new Map());
+  const pickVolumeGroupRef = React.useRef(null);
+  const pickBoxRef = React.useRef(null);
+  const pickPlaneMeshRef = React.useRef(null);
+  const previewMeshRef = React.useRef(null);
+  const manipulatorGroupRef = React.useRef(null);
+  const dragAxisRef = React.useRef(null);
+  const dragStartRef = React.useRef(null);
   const [status, setStatus] = React.useState('loading');
 
   React.useEffect(() => {
     onReplayStateChangeRef.current = onReplayStateChange;
   }, [onReplayStateChange]);
+
+  React.useEffect(() => {
+    onViewportClickRef.current = onViewportClick;
+  }, [onViewportClick]);
+  React.useEffect(() => {
+    onPreviewDragRef.current = onPreviewDrag;
+  }, [onPreviewDrag]);
+  React.useEffect(() => {
+    onMarkerSelectRef.current = onMarkerSelect;
+  }, [onMarkerSelect]);
+  React.useEffect(() => {
+    pickEnabledRef.current = Boolean(pickEnabled);
+  }, [pickEnabled]);
+  React.useEffect(() => {
+    pickPlaneYRef.current = Number(pickPlaneY) || 0.18;
+  }, [pickPlaneY]);
+  React.useEffect(() => {
+    pickBoundsRef.current = pickBounds;
+  }, [pickBounds]);
+  React.useEffect(() => {
+    previewMarkerRef.current = previewMarker;
+  }, [previewMarker]);
 
   const applyTrajectoryColor = React.useCallback((hexColor) => {
     const color = new THREE.Color(hexColor || '#ff0000');
@@ -403,33 +508,114 @@ export function ArmUrdfViewer({
   React.useEffect(() => {
     const group = waypointGroupRef.current;
     if (!group) return;
-    while (group.children.length > 0) {
-      const c = group.children.pop();
-      c?.geometry?.dispose?.();
-      if (Array.isArray(c?.material)) c.material.forEach((m) => m.dispose?.());
-      else c?.material?.dispose?.();
-    }
+    const meshMap = waypointMeshMapRef.current;
+    const labelMap = waypointLabelMapRef.current;
+    const nextIds = new Set();
     (Array.isArray(waypointMarkers) ? waypointMarkers : []).forEach((wp) => {
+      const wid = String(wp?.id || '');
+      if (!wid) return;
+      nextIds.add(wid);
       const x = Number(wp?.x);
       const y = Number(wp?.y);
       const z = Number(wp?.z);
       if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
-      const color = Number(wp?.color || 0x3b82f6);
-      const marker = new THREE.Mesh(
-        new THREE.SphereGeometry(0.014, 14, 14),
-        new THREE.MeshStandardMaterial({
-          color,
-          roughness: 0.22,
-          metalness: 0.05,
-          emissive: color,
-          emissiveIntensity: 0.12,
-        }),
-      );
-      marker.position.set(x, y, z);
-      marker.userData = { waypointId: wp?.id || '' };
-      group.add(marker);
+      const color = Number(wp?.color || 0x3b82f6) >>> 0;
+      const labelText = String(wp?.label || wid);
+      let marker = meshMap.get(wid);
+      if (!marker) {
+        marker = new THREE.Mesh(
+          new THREE.SphereGeometry(0.014, 14, 14),
+          new THREE.MeshBasicMaterial({
+            color,
+            transparent: true,
+            opacity: 0.96,
+            depthTest: false,
+            depthWrite: false,
+          }),
+        );
+        marker.renderOrder = 1500;
+        marker.userData = { waypointId: wid };
+        group.add(marker);
+        meshMap.set(wid, marker);
+      } else if (marker.material?.color) {
+        marker.material.color.setHex(color);
+      }
+      // Slight lift avoids coplanar shimmer against grid.
+      marker.position.set(x, y + 0.006, z);
+
+      let label = labelMap.get(wid);
+      const labelColor = Number(color || 0x3b82f6) >>> 0;
+      if (!label) {
+        label = makeWaypointLabelSprite(labelText, labelColor);
+        label.userData.waypointId = wid;
+        group.add(label);
+        labelMap.set(wid, label);
+      } else if (label.userData?.labelText !== labelText || label.userData?.labelColor !== labelColor) {
+        group.remove(label);
+        disposeMaterial(label.material);
+        label = makeWaypointLabelSprite(labelText, labelColor);
+        label.userData.waypointId = wid;
+        group.add(label);
+        labelMap.set(wid, label);
+      }
+      label.position.set(x, y + 0.052, z);
+    });
+    Array.from(meshMap.keys()).forEach((id) => {
+      if (nextIds.has(id)) return;
+      const marker = meshMap.get(id);
+      if (marker) {
+        group.remove(marker);
+        marker.geometry?.dispose?.();
+        marker.material?.dispose?.();
+      }
+      meshMap.delete(id);
+    });
+    Array.from(labelMap.keys()).forEach((id) => {
+      if (nextIds.has(id)) return;
+      const label = labelMap.get(id);
+      if (label) {
+        group.remove(label);
+        disposeMaterial(label.material);
+      }
+      labelMap.delete(id);
     });
   }, [waypointMarkers]);
+
+  React.useEffect(() => {
+    const pickGroup = pickVolumeGroupRef.current;
+    if (!pickGroup) return;
+    const enabled = Boolean(pickEnabled);
+    pickGroup.visible = enabled;
+    const b = pickBounds || { xMin: -0.45, xMax: 0.45, yMin: 0.02, yMax: 0.55, zMin: -0.45, zMax: 0.45 };
+    const sx = Number(b.xMax) - Number(b.xMin);
+    const sy = Number(b.yMax) - Number(b.yMin);
+    const sz = Number(b.zMax) - Number(b.zMin);
+    const cx = (Number(b.xMin) + Number(b.xMax)) / 2;
+    const cy = (Number(b.yMin) + Number(b.yMax)) / 2;
+    const cz = (Number(b.zMin) + Number(b.zMax)) / 2;
+    if (pickBoxRef.current) {
+      pickBoxRef.current.scale.set(Math.max(0.001, sx), Math.max(0.001, sy), Math.max(0.001, sz));
+      pickBoxRef.current.position.set(cx, cy, cz);
+    }
+    if (pickPlaneMeshRef.current) {
+      pickPlaneMeshRef.current.scale.set(Math.max(0.001, sx), Math.max(0.001, sz), 1);
+      pickPlaneMeshRef.current.position.set(cx, Number(pickPlaneY) || cy, cz);
+    }
+  }, [pickEnabled, pickPlaneY, pickBounds]);
+
+  React.useEffect(() => {
+    const marker = previewMeshRef.current;
+    const manipulator = manipulatorGroupRef.current;
+    if (!marker) return;
+    const p = previewMarker;
+    const visible = Boolean(p && pickEnabled);
+    marker.visible = visible;
+    if (manipulator) manipulator.visible = visible;
+    if (!visible) return;
+    marker.position.set(Number(p.x || 0), Number(p.y || 0) + 0.012, Number(p.z || 0));
+    if (manipulator) manipulator.position.set(Number(p.x || 0), Number(p.y || 0) + 0.012, Number(p.z || 0));
+    if (marker.material?.color) marker.material.color.setHex(Number(p.color || 0xffb020));
+  }, [previewMarker, pickEnabled]);
 
   React.useEffect(() => {
     const host = hostRef.current;
@@ -471,6 +657,92 @@ export function ArmUrdfViewer({
     waypointGroup.name = 'waypoint-markers';
     scene.add(waypointGroup);
     waypointGroupRef.current = waypointGroup;
+
+    const pickVolumeGroup = new THREE.Group();
+    pickVolumeGroup.name = 'pick-volume';
+    pickVolumeGroup.visible = pickEnabledRef.current;
+    scene.add(pickVolumeGroup);
+    pickVolumeGroupRef.current = pickVolumeGroup;
+
+    const pickBox = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+      new THREE.LineBasicMaterial({ color: 0x8aa8de, transparent: true, opacity: 0.55 }),
+    );
+    pickBox.renderOrder = 1200;
+    pickVolumeGroup.add(pickBox);
+    pickBoxRef.current = pickBox;
+
+    const pickPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        color: 0x83b4ff,
+        transparent: true,
+        opacity: 0.14,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    pickPlane.rotation.x = -Math.PI / 2;
+    pickPlane.renderOrder = 1100;
+    pickVolumeGroup.add(pickPlane);
+    pickPlaneMeshRef.current = pickPlane;
+
+    const previewMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.018, 16, 16),
+      new THREE.MeshBasicMaterial({
+        color: 0xffb020,
+        transparent: true,
+        opacity: 0.98,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    previewMesh.visible = false;
+    previewMesh.renderOrder = 1600;
+    scene.add(previewMesh);
+    previewMeshRef.current = previewMesh;
+
+    const makeAxisHandle = (axis, color, rotation) => {
+      const group = new THREE.Group();
+      group.userData = { axis };
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.004, 0.004, 0.16, 10),
+        new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false }),
+      );
+      shaft.position.y = 0.08;
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.014, 0.035, 12),
+        new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false }),
+      );
+      cone.position.y = 0.175;
+      group.add(shaft);
+      group.add(cone);
+      group.rotation.set(rotation.x, rotation.y, rotation.z);
+      group.traverse((obj) => {
+        obj.renderOrder = 1700;
+        obj.userData = { axis };
+      });
+      return group;
+    };
+    const manipulator = new THREE.Group();
+    manipulator.visible = false;
+    manipulator.add(makeAxisHandle('y', 0x2fbf71, { x: 0, y: 0, z: 0 }));
+    manipulator.add(makeAxisHandle('x', 0xe74b3c, { x: 0, y: 0, z: -Math.PI / 2 }));
+    manipulator.add(makeAxisHandle('z', 0x3578ff, { x: Math.PI / 2, y: 0, z: 0 }));
+    scene.add(manipulator);
+    manipulatorGroupRef.current = manipulator;
+
+    const initialBounds = pickBoundsRef.current || { xMin: -0.45, xMax: 0.45, yMin: 0.02, yMax: 0.55, zMin: -0.45, zMax: 0.45 };
+    const initialSx = Number(initialBounds.xMax) - Number(initialBounds.xMin);
+    const initialSy = Number(initialBounds.yMax) - Number(initialBounds.yMin);
+    const initialSz = Number(initialBounds.zMax) - Number(initialBounds.zMin);
+    const initialCx = (Number(initialBounds.xMin) + Number(initialBounds.xMax)) / 2;
+    const initialCy = (Number(initialBounds.yMin) + Number(initialBounds.yMax)) / 2;
+    const initialCz = (Number(initialBounds.zMin) + Number(initialBounds.zMax)) / 2;
+    pickBox.scale.set(Math.max(0.001, initialSx), Math.max(0.001, initialSy), Math.max(0.001, initialSz));
+    pickBox.position.set(initialCx, initialCy, initialCz);
+    pickPlane.scale.set(Math.max(0.001, initialSx), Math.max(0.001, initialSz), 1);
+    pickPlane.position.set(initialCx, pickPlaneYRef.current, initialCz);
 
     const trailGeometry = new LineGeometry();
     trailGeometry.setPositions(SAFE_ZERO_SEGMENT);
@@ -640,6 +912,80 @@ export function ArmUrdfViewer({
     };
 
     const clock = new THREE.Clock();
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const clickPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const clickPoint = new THREE.Vector3();
+
+    const onPointerDown = (ev) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const manipulator = manipulatorGroupRef.current;
+      if (manipulator?.visible) {
+        const hits = raycaster.intersectObjects(manipulator.children, true);
+        const axis = hits.find((h) => h?.object?.userData?.axis)?.object?.userData?.axis;
+        if (axis) {
+          dragAxisRef.current = axis;
+          dragStartRef.current = {
+            clientX: ev.clientX,
+            clientY: ev.clientY,
+            pose: previewMarkerRef.current ? { ...previewMarkerRef.current } : null,
+          };
+          controls.enabled = false;
+          renderer.domElement.setPointerCapture?.(ev.pointerId);
+          ev.preventDefault();
+          return;
+        }
+      }
+      const markers = Array.from(waypointMeshMapRef.current.values());
+      if (markers.length > 0) {
+        const hits = raycaster.intersectObjects(markers, false);
+        if (hits.length > 0) {
+          const id = String(hits[0]?.object?.userData?.waypointId || '');
+          if (id && typeof onMarkerSelectRef.current === 'function') onMarkerSelectRef.current(id);
+          return;
+        }
+      }
+      if (!pickEnabledRef.current || typeof onViewportClickRef.current !== 'function') return;
+      clickPlane.constant = -pickPlaneYRef.current;
+      if (raycaster.ray.intersectPlane(clickPlane, clickPoint)) {
+        const b = pickBoundsRef.current;
+        if (b) {
+          clickPoint.x = Math.max(Number(b.xMin), Math.min(Number(b.xMax), clickPoint.x));
+          clickPoint.y = Math.max(Number(b.yMin), Math.min(Number(b.yMax), clickPoint.y));
+          clickPoint.z = Math.max(Number(b.zMin), Math.min(Number(b.zMax), clickPoint.z));
+        }
+        onViewportClickRef.current({ x: clickPoint.x, y: clickPoint.y, z: clickPoint.z });
+      }
+    };
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    const onPointerMove = (ev) => {
+      const axis = dragAxisRef.current;
+      const start = dragStartRef.current;
+      if (!axis || !start?.pose || typeof onPreviewDragRef.current !== 'function') return;
+      const dx = ev.clientX - start.clientX;
+      const dy = ev.clientY - start.clientY;
+      const sensitivity = 0.0022;
+      const next = { ...start.pose };
+      if (axis === 'x') next.x = Number(start.pose.x || 0) + dx * sensitivity;
+      if (axis === 'z') next.z = Number(start.pose.z || 0) + dx * sensitivity;
+      if (axis === 'y') next.y = Number(start.pose.y || 0) - dy * sensitivity;
+      onPreviewDragRef.current(next);
+      ev.preventDefault();
+    };
+    const onPointerUp = (ev) => {
+      if (!dragAxisRef.current) return;
+      dragAxisRef.current = null;
+      dragStartRef.current = null;
+      controls.enabled = true;
+      renderer.domElement.releasePointerCapture?.(ev.pointerId);
+    };
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
+    renderer.domElement.addEventListener('pointerup', onPointerUp);
+    renderer.domElement.addEventListener('pointercancel', onPointerUp);
+
     let raf = 0;
     const renderLoop = () => {
       const dt = clock.getDelta();
@@ -692,6 +1038,10 @@ export function ArmUrdfViewer({
 
     return () => {
       window.removeEventListener('resize', resize);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('pointermove', onPointerMove);
+      renderer.domElement.removeEventListener('pointerup', onPointerUp);
+      renderer.domElement.removeEventListener('pointercancel', onPointerUp);
       window.cancelAnimationFrame(raf);
       controls.dispose();
       renderer.dispose();
@@ -711,6 +1061,20 @@ export function ArmUrdfViewer({
       trailDotsRef.current = null;
       trailHeadRef.current = null;
       waypointGroupRef.current = null;
+      pickVolumeGroupRef.current = null;
+      pickBoxRef.current = null;
+      pickPlaneMeshRef.current = null;
+      previewMeshRef.current = null;
+      manipulatorGroupRef.current = null;
+      waypointMeshMapRef.current.forEach((marker) => {
+        marker.geometry?.dispose?.();
+        marker.material?.dispose?.();
+      });
+      waypointMeshMapRef.current.clear();
+      waypointLabelMapRef.current.forEach((label) => {
+        disposeMaterial(label.material);
+      });
+      waypointLabelMapRef.current.clear();
       endEffectorRef.current = null;
       trailPointsRef.current = [];
       trailFramesRef.current = [];
