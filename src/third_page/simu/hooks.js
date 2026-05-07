@@ -2,6 +2,7 @@ import React from 'react';
 import { SimuWsBridge } from './wsBridge';
 
 const LS_PRESETS_KEY = 'motorbridge_simu_joint_presets_v1';
+const DEFAULT_SIMU_WS_URL = import.meta.env.VITE_SIMU_WS_URL || 'ws://127.0.0.1:9011/ws';
 
 export function useSimuState() {
   const [targets, setTargets] = React.useState(() =>
@@ -251,7 +252,7 @@ export function useSimuState() {
 }
 
 export function useSimuBridge() {
-  const [url, setUrl] = React.useState('ws://127.0.0.1:9011/ws');
+  const [url, setUrl] = React.useState(DEFAULT_SIMU_WS_URL);
   const [bridgeMsg, setBridgeMsg] = React.useState('waiting');
   const [status, setStatus] = React.useState({ connected: false, phase: 'idle' });
   const bridgeRef = React.useRef(null);

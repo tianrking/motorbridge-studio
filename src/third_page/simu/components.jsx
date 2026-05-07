@@ -221,7 +221,7 @@ function SimuBridgeDock({ state, bridge }) {
         className="simu-ws-input"
         value={bridge.url}
         onChange={(e) => bridge.setUrl(e.target.value)}
-        placeholder="ws://127.0.0.1:9011/ws"
+        placeholder="ws://127.0.0.1:9011/ws or wss://your-backend/ws"
       />
       <div className="simu-bridge-actions">
         <button className="ghostBtn small" onClick={bridge.connectWs}>Connect</button>
@@ -567,8 +567,10 @@ function PlanPanel({ state, bridge }) {
                 <small>{wp.label || wp.id}</small>
               </span>
               <span className="simu-waypoint-coords">{wp.x.toFixed(3)}, {wp.y.toFixed(3)}, {wp.z.toFixed(3)}</span>
-              <button className="ghostBtn small" onClick={(e) => { e.stopPropagation(); state.addToSequence(wp.id); }}>+Seq</button>
-              <button className="ghostBtn small" disabled={busy} onClick={(e) => { e.stopPropagation(); deletePoint(wp.id); }}>Del</button>
+              <span className="simu-waypoint-actions">
+                <button className="simu-mini-action queue" onClick={(e) => { e.stopPropagation(); state.addToSequence(wp.id); }}>Queue</button>
+                <button className="simu-mini-action danger" disabled={busy} onClick={(e) => { e.stopPropagation(); deletePoint(wp.id); }}>Del</button>
+              </span>
             </div>
           ))}
           {state.waypointList.length === 0 && <div className="simu-empty">No points yet</div>}

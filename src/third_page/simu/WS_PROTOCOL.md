@@ -59,6 +59,21 @@ pkill -f run_simu_ws_gateway.py
 Default URL:
 - `ws://127.0.0.1:9011/ws`
 
+For a deployed Studio frontend, configure the default WebSocket endpoint with
+the Vite environment variable:
+```bash
+VITE_SIMU_WS_URL=wss://your-public-motorbridge-arm-host/ws
+```
+
+Important deployment note:
+- `http://localhost:18110/simu` works locally because the Vite dev server serves
+  the SPA fallback automatically.
+- Vercel needs `vercel.json` rewrites so direct `/simu` visits load
+  `index.html`.
+- `ws://127.0.0.1:9011/ws` only works on the same machine running
+  `motorbridge-arm`. From Vercel, `127.0.0.1` means the visitor/browser machine,
+  not your backend. Use a public `wss://.../ws` backend URL for cloud access.
+
 ## Modes
 - Local mode: no WS connection. The page can still edit points and preview a browser-side path.
 - WS mode: connect to `motorbridge-arm` at `ws://127.0.0.1:9011/ws`.

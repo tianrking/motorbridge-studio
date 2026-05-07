@@ -430,7 +430,7 @@
   border-radius: 10px;
   padding: 8px;
   display: grid;
-  grid-template-columns: 12px minmax(54px, 0.75fr) minmax(82px, 1fr) auto;
+  grid-template-columns: 12px minmax(58px, 0.8fr) minmax(86px, 1fr) auto;
   align-items: center;
   gap: 6px;
   text-align: left;
@@ -488,6 +488,56 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.simu-waypoint-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.simu-mini-action {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 8px;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+  white-space: nowrap;
+}
+
+.simu-mini-action:hover {
+  transform: translateY(-1px);
+}
+
+.simu-mini-action.queue {
+  background: #eaf2ff;
+  color: #2456a8;
+}
+
+.simu-mini-action.queue:hover {
+  background: #dbeaff;
+}
+
+.simu-mini-action.danger {
+  background: transparent;
+  color: #b55353;
+  padding-inline: 6px;
+}
+
+.simu-mini-action.danger:hover {
+  background: #fff0f0;
+  color: #923838;
+}
+
+.simu-mini-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
 }
 
 .simu-empty {
