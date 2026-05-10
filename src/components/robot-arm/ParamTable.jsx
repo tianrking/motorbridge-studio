@@ -81,7 +81,7 @@ export function ParamTable({
           {t('close')}
         </button>
       </div>
-      {!canWriteParams && <div className="tip">Read all Damiao joint parameters successfully before write.</div>}
+      {!canWriteParams && <div className="tip">Read all online Damiao joint parameters successfully before write.</div>}
       {paramInfo && <div className="tip">{paramInfo}</div>}
       <ProgressBar active={paramBusy || paramProgress?.active} progress={paramProgress} />
       {GROUPS.map((group) => {

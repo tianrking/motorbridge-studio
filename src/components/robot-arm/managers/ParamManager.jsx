@@ -105,12 +105,18 @@ export function ParamManager({
     setParamBusy(true);
     setParamInfo('');
     try {
-      const blockedRows = paramRows.filter((x) => String(x?.hit?.vendor) === 'damiao' && (!x.loaded || x.error));
+      const onlineDamiaoRows = paramRows.filter(
+        (x) => String(x?.hit?.vendor) === 'damiao' && Boolean(x?.hit?.online),
+      );
+      if (onlineDamiaoRows.length === 0) {
+        throw new Error('no online damiao joints');
+      }
+      const blockedRows = onlineDamiaoRows.filter((x) => !x.loaded || x.error);
       if (blockedRows.length > 0) {
         throw new Error(`read parameters first for joints: ${blockedRows.map((x) => `J${x.joint}`).join(', ')}`);
       }
 
-      const rows = paramRows.map((x) => ({
+      const rows = onlineDamiaoRows.map((x) => ({
         key: x.key,
         joint: x.joint,
         hit: x.hit,
@@ -205,10 +211,13 @@ export function ParamManager({
     setParamInfo(t('arm_params_template_applied'));
   }, [t]);
 
-  const canWriteParams = React.useMemo(
-    () => paramRows.length > 0 && paramRows.every((row) => String(row?.hit?.vendor) !== 'damiao' || (row.loaded && !row.error)),
-    [paramRows],
-  );
+  const canWriteParams = React.useMemo(() => {
+    const onlineDamiaoRows = paramRows.filter(
+      (row) => String(row?.hit?.vendor) === 'damiao' && Boolean(row?.hit?.online),
+    );
+    if (onlineDamiaoRows.length === 0) return false;
+    return onlineDamiaoRows.every((row) => row.loaded && !row.error);
+  }, [paramRows]);
 
   const manager = {
     paramPanelOpen,
