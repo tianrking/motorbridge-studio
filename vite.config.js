@@ -13,5 +13,29 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'three-core',
+              test: /node_modules[\\/]three[\\/]build[\\/]/,
+              priority: 30,
+            },
+            {
+              name: 'three-addons',
+              test: /node_modules[\\/]three[\\/]examples[\\/]/,
+              priority: 20,
+            },
+            {
+              name: 'urdf-loader',
+              test: /node_modules[\\/]urdf-loader[\\/]/,
+              priority: 10,
+            },
+          ],
+        },
+      },
+    },
   },
 });

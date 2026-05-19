@@ -6,13 +6,24 @@ import { ConnectionPanel } from './components/ConnectionPanel';
 import { ScanWorkspace } from './components/ScanWorkspace';
 import { MotorSection } from './components/MotorSection';
 import { StateLogsPanel } from './components/StateLogsPanel';
-import { RobotArmPage } from './components/RobotArmPage';
-import { SimuPage } from './third_page';
 import { HelpCenterModal } from './components/HelpCenterModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { useMotorStudio } from './hooks/useMotorStudio';
 import { MotorStudioProvider } from './hooks/useMotorStudioContext';
 import { useI18n } from './i18n';
+
+const RobotArmPage = React.lazy(() =>
+  import('./components/RobotArmPage').then((mod) => ({ default: mod.RobotArmPage })),
+);
+const SimuPage = React.lazy(() => import('./third_page').then((mod) => ({ default: mod.SimuPage })));
+
+function PageFallback() {
+  return (
+    <section className="card glass">
+      <div className="tip">Loading...</div>
+    </section>
+  );
+}
 
 export default function App() {
   const { t } = useI18n();
@@ -31,7 +42,9 @@ export default function App() {
   if (isSimuRoute) {
     return (
       <MotorStudioProvider value={studio}>
-        <SimuPage />
+        <React.Suspense fallback={<PageFallback />}>
+          <SimuPage />
+        </React.Suspense>
       </MotorStudioProvider>
     );
   }
@@ -76,7 +89,9 @@ export default function App() {
             <MotorSection />
           </>
         ) : (
-          <RobotArmPage />
+          <React.Suspense fallback={<PageFallback />}>
+            <RobotArmPage />
+          </React.Suspense>
         )}
 
         <StateLogsPanel />

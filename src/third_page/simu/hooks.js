@@ -256,6 +256,7 @@ export function useSimuBridge() {
   const [bridgeMsg, setBridgeMsg] = React.useState('waiting');
   const [status, setStatus] = React.useState({ connected: false, phase: 'idle' });
   const bridgeRef = React.useRef(null);
+  const initialUrlRef = React.useRef(url);
   const [latestState, setLatestState] = React.useState(null);
   const [history, setHistory] = React.useState([]);
   const [busSnapshot, setBusSnapshot] = React.useState(null);
@@ -290,7 +291,7 @@ export function useSimuBridge() {
 
   React.useEffect(() => {
     const bridge = new SimuWsBridge({
-      url,
+      url: initialUrlRef.current,
       onStatus: setStatus,
       onState: setLatestState,
       onLog: setBridgeMsg,

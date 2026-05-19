@@ -819,15 +819,6 @@ export function ArmUrdfViewer({
     planPathLine.computeLineDistances();
     scene.add(planPathLine);
     planPathLineRef.current = planPathLine;
-    const initialPlanFlat = [];
-    (Array.isArray(plannedPath) ? plannedPath : []).forEach((p) => {
-      const x = Number(p?.x);
-      const y = Number(p?.y);
-      const z = Number(p?.z);
-      if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) initialPlanFlat.push(x, y, z);
-    });
-    setLinePositionsSafe(planPathLine, initialPlanFlat);
-    planPathLine.visible = initialPlanFlat.length >= 6;
 
     const rainbowGeom = new THREE.BufferGeometry();
     rainbowGeom.setAttribute('position', new THREE.Float32BufferAttribute(SAFE_ZERO_SEGMENT, 3));
@@ -1103,6 +1094,8 @@ export function ArmUrdfViewer({
       if (planMat?.resolution) planMat.resolution.set(w, h);
     };
     window.addEventListener('resize', resize);
+    const waypointMeshMap = waypointMeshMapRef.current;
+    const waypointLabelMap = waypointLabelMapRef.current;
 
     return () => {
       window.removeEventListener('resize', resize);
@@ -1135,15 +1128,15 @@ export function ArmUrdfViewer({
       pickPlaneMeshRef.current = null;
       previewMeshRef.current = null;
       manipulatorGroupRef.current = null;
-      waypointMeshMapRef.current.forEach((marker) => {
+      waypointMeshMap.forEach((marker) => {
         marker.geometry?.dispose?.();
         marker.material?.dispose?.();
       });
-      waypointMeshMapRef.current.clear();
-      waypointLabelMapRef.current.forEach((label) => {
+      waypointMeshMap.clear();
+      waypointLabelMap.forEach((label) => {
         disposeMaterial(label.material);
       });
-      waypointLabelMapRef.current.clear();
+      waypointLabelMap.clear();
       endEffectorRef.current = null;
       trailPointsRef.current = [];
       trailFramesRef.current = [];
