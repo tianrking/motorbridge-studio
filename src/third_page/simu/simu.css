@@ -412,6 +412,46 @@
   margin: 2px 0 5px;
 }
 
+.simu-workplane-block {
+  border: 1px solid #d7e2f6;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 8px;
+}
+
+.simu-segment-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 7px;
+}
+
+.simu-segment-btn {
+  appearance: none;
+  border: 1px solid #cfdaf0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #526986;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  min-height: 28px;
+  padding: 6px 5px;
+  white-space: nowrap;
+}
+
+.simu-segment-btn.active {
+  border-color: #8fb2ef;
+  background: #eaf2ff;
+  color: #244f9f;
+}
+
+.simu-segment-btn:hover {
+  border-color: #9fb8e4;
+  color: #244f9f;
+}
+
 .simu-point-meta-grid {
   display: grid;
   grid-template-columns: 0.72fr 1.28fr;

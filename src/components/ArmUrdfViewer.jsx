@@ -136,6 +136,55 @@ function makeWaypointLabelSprite(text, color) {
   return sprite;
 }
 
+function normalizePickPlaneMode(mode) {
+  return ['xz', 'xy', 'yz'].includes(mode) ? mode : 'xz';
+}
+
+function pickPlaneNormal(mode, rotationDeg) {
+  const normalized = normalizePickPlaneMode(mode);
+  const normal =
+    normalized === 'xy'
+      ? new THREE.Vector3(0, 0, 1)
+      : normalized === 'yz'
+        ? new THREE.Vector3(1, 0, 0)
+        : new THREE.Vector3(0, 1, 0);
+  if (normalized !== 'xz') normal.applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(Number(rotationDeg) || 0));
+  return normal.normalize();
+}
+
+function pickPlaneAnchor(mode, offset, bounds) {
+  const b = bounds || { xMin: -0.45, xMax: 0.45, yMin: 0.02, yMax: 0.55, zMin: -0.45, zMax: 0.45 };
+  const x = (Number(b.xMin) + Number(b.xMax)) / 2;
+  const y = (Number(b.yMin) + Number(b.yMax)) / 2;
+  const z = (Number(b.zMin) + Number(b.zMax)) / 2;
+  const normalized = normalizePickPlaneMode(mode);
+  const raw = Number(offset);
+  if (normalized === 'xy') return new THREE.Vector3(x, y, Number.isFinite(raw) ? raw : z);
+  if (normalized === 'yz') return new THREE.Vector3(Number.isFinite(raw) ? raw : x, y, z);
+  return new THREE.Vector3(x, Number.isFinite(raw) ? raw : y, z);
+}
+
+function pickPlaneSize(mode, bounds) {
+  const b = bounds || { xMin: -0.45, xMax: 0.45, yMin: 0.02, yMax: 0.55, zMin: -0.45, zMax: 0.45 };
+  const sx = Math.max(0.001, Number(b.xMax) - Number(b.xMin));
+  const sy = Math.max(0.001, Number(b.yMax) - Number(b.yMin));
+  const sz = Math.max(0.001, Number(b.zMax) - Number(b.zMin));
+  const normalized = normalizePickPlaneMode(mode);
+  if (normalized === 'xy') return { w: sx, h: sy };
+  if (normalized === 'yz') return { w: sz, h: sy };
+  return { w: sx, h: sz };
+}
+
+function applyPickPlaneMeshTransform(mesh, mode, rotationDeg, offset, bounds) {
+  if (!mesh) return;
+  const normal = pickPlaneNormal(mode, rotationDeg);
+  const anchor = pickPlaneAnchor(mode, offset, bounds);
+  const size = pickPlaneSize(mode, bounds);
+  mesh.scale.set(size.w, size.h, 1);
+  mesh.position.copy(anchor);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+}
+
 export function ArmUrdfViewer({
   jointTargets,
   resetViewSeq = 0,
@@ -155,6 +204,8 @@ export function ArmUrdfViewer({
   plannedPath = [],
   pickEnabled = false,
   pickPlaneY = 0.18,
+  pickPlaneMode = 'xz',
+  pickPlaneRotation = 0,
   pickBounds = null,
   previewMarker = null,
   onMarkerSelect,
@@ -187,7 +238,9 @@ export function ArmUrdfViewer({
   const onPreviewDragRef = React.useRef(onPreviewDrag);
   const onMarkerSelectRef = React.useRef(onMarkerSelect);
   const pickEnabledRef = React.useRef(Boolean(pickEnabled));
-  const pickPlaneYRef = React.useRef(Number(pickPlaneY) || 0.18);
+  const pickPlaneYRef = React.useRef(Number.isFinite(Number(pickPlaneY)) ? Number(pickPlaneY) : 0.18);
+  const pickPlaneModeRef = React.useRef(normalizePickPlaneMode(pickPlaneMode));
+  const pickPlaneRotationRef = React.useRef(Number(pickPlaneRotation) || 0);
   const pickBoundsRef = React.useRef(pickBounds);
   const previewMarkerRef = React.useRef(previewMarker);
   const tmpWorldRef = React.useRef(new THREE.Vector3());
@@ -221,8 +274,15 @@ export function ArmUrdfViewer({
     pickEnabledRef.current = Boolean(pickEnabled);
   }, [pickEnabled]);
   React.useEffect(() => {
-    pickPlaneYRef.current = Number(pickPlaneY) || 0.18;
+    const next = Number(pickPlaneY);
+    pickPlaneYRef.current = Number.isFinite(next) ? next : 0.18;
   }, [pickPlaneY]);
+  React.useEffect(() => {
+    pickPlaneModeRef.current = normalizePickPlaneMode(pickPlaneMode);
+  }, [pickPlaneMode]);
+  React.useEffect(() => {
+    pickPlaneRotationRef.current = Number(pickPlaneRotation) || 0;
+  }, [pickPlaneRotation]);
   React.useEffect(() => {
     pickBoundsRef.current = pickBounds;
   }, [pickBounds]);
@@ -632,10 +692,9 @@ export function ArmUrdfViewer({
       pickBoxRef.current.position.set(cx, cy, cz);
     }
     if (pickPlaneMeshRef.current) {
-      pickPlaneMeshRef.current.scale.set(Math.max(0.001, sx), Math.max(0.001, sz), 1);
-      pickPlaneMeshRef.current.position.set(cx, Number(pickPlaneY) || cy, cz);
+      applyPickPlaneMeshTransform(pickPlaneMeshRef.current, pickPlaneMode, pickPlaneRotation, pickPlaneY, b);
     }
-  }, [pickEnabled, pickPlaneY, pickBounds]);
+  }, [pickEnabled, pickPlaneY, pickPlaneMode, pickPlaneRotation, pickBounds]);
 
   React.useEffect(() => {
     const marker = previewMeshRef.current;
@@ -716,7 +775,6 @@ export function ArmUrdfViewer({
         depthWrite: false,
       }),
     );
-    pickPlane.rotation.x = -Math.PI / 2;
     pickPlane.renderOrder = 1100;
     pickVolumeGroup.add(pickPlane);
     pickPlaneMeshRef.current = pickPlane;
@@ -775,8 +833,13 @@ export function ArmUrdfViewer({
     const initialCz = (Number(initialBounds.zMin) + Number(initialBounds.zMax)) / 2;
     pickBox.scale.set(Math.max(0.001, initialSx), Math.max(0.001, initialSy), Math.max(0.001, initialSz));
     pickBox.position.set(initialCx, initialCy, initialCz);
-    pickPlane.scale.set(Math.max(0.001, initialSx), Math.max(0.001, initialSz), 1);
-    pickPlane.position.set(initialCx, pickPlaneYRef.current, initialCz);
+    applyPickPlaneMeshTransform(
+      pickPlane,
+      pickPlaneModeRef.current,
+      pickPlaneRotationRef.current,
+      pickPlaneYRef.current,
+      initialBounds,
+    );
 
     const trailGeometry = new LineGeometry();
     trailGeometry.setPositions(SAFE_ZERO_SEGMENT);
@@ -1006,7 +1069,9 @@ export function ArmUrdfViewer({
         }
       }
       if (!pickEnabledRef.current || typeof onViewportClickRef.current !== 'function') return;
-      clickPlane.constant = -pickPlaneYRef.current;
+      const normal = pickPlaneNormal(pickPlaneModeRef.current, pickPlaneRotationRef.current);
+      const anchor = pickPlaneAnchor(pickPlaneModeRef.current, pickPlaneYRef.current, pickBoundsRef.current);
+      clickPlane.setFromNormalAndCoplanarPoint(normal, anchor);
       if (raycaster.ray.intersectPlane(clickPlane, clickPoint)) {
         const b = pickBoundsRef.current;
         if (b) {

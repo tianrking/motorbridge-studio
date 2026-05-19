@@ -30,6 +30,8 @@ export function useSimuState() {
   const [pickMode, setPickMode] = React.useState(false);
   const [sequenceIds, setSequenceIds] = React.useState([]);
   const [pickPlaneY, setPickPlaneY] = React.useState(0.18);
+  const [pickPlaneMode, setPickPlaneMode] = React.useState('xz');
+  const [pickPlaneRotation, setPickPlaneRotation] = React.useState(0);
   const [selectedWaypointId, setSelectedWaypointId] = React.useState('');
   const [editPose, setEditPose] = React.useState({ x: 0, y: 0, z: 0, roll: 0, pitch: 0, yaw: 0 });
   const [localWaypoints, setLocalWaypoints] = React.useState({});
@@ -207,6 +209,10 @@ export function useSimuState() {
     setPickMode,
     pickPlaneY,
     setPickPlaneY,
+    pickPlaneMode,
+    setPickPlaneMode,
+    pickPlaneRotation,
+    setPickPlaneRotation,
     sequenceIds,
     setSequenceIds,
     selectedWaypointId,

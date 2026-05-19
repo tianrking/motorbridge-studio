@@ -100,6 +100,12 @@ function validationTone(validation) {
   return 'idle';
 }
 
+function pickPlaneOffsetMeta(mode) {
+  if (mode === 'xy') return { label: 'Plane Z', min: PLAN_BOUNDS.zMin, max: PLAN_BOUNDS.zMax };
+  if (mode === 'yz') return { label: 'Plane X', min: PLAN_BOUNDS.xMin, max: PLAN_BOUNDS.xMax };
+  return { label: 'Plane Y', min: PLAN_BOUNDS.yMin, max: PLAN_BOUNDS.yMax };
+}
+
 export function SimuLeftNav({ state }) {
   return (
     <aside className="simu-left-nav">
@@ -128,6 +134,7 @@ export function SimuLeftNav({ state }) {
 }
 
 export function SimuViewport({ state }) {
+  const pickPlaneMeta = pickPlaneOffsetMeta(state.pickPlaneMode);
   const normalizedMarkers = React.useMemo(() => state.waypointList.map((wp) => {
     const s = String(wp.id || '');
     let hash = 0;
@@ -183,7 +190,9 @@ export function SimuViewport({ state }) {
               waypointMarkers={normalizedMarkers}
               plannedPath={plannedPath}
               pickEnabled={state.pickMode}
-              pickPlaneY={clamp(Number(state.pickPlaneY || 0.18), PLAN_BOUNDS.yMin, PLAN_BOUNDS.yMax)}
+              pickPlaneY={clamp(Number(state.pickPlaneY || 0.18), pickPlaneMeta.min, pickPlaneMeta.max)}
+              pickPlaneMode={state.pickPlaneMode}
+              pickPlaneRotation={state.pickPlaneRotation}
               pickBounds={PLAN_BOUNDS}
               previewMarker={previewMarker}
               onMarkerSelect={(id) => {
@@ -580,6 +589,8 @@ function PlanPanel({ state, bridge }) {
 
   const validationClass = validationTone(validation);
   const canSavePoint = !bridge.connected || validationClass === 'ok' || validationClass === 'near';
+  const pickPlaneMeta = pickPlaneOffsetMeta(state.pickPlaneMode);
+  const pickPlaneOffset = clamp(Number(state.pickPlaneY || 0), pickPlaneMeta.min, pickPlaneMeta.max);
 
   return (
     <>
@@ -592,10 +603,50 @@ function PlanPanel({ state, bridge }) {
           <button className="ghostBtn small" onClick={() => state.setEditPoseFromCurrent(poseViewer)}>Use Current Pose</button>
           <button className="ghostBtn small" onClick={() => state.setClearTrailSeq((x) => x + 1)}>Clear Trail</button>
         </div>
-        <label className="simu-field dense">
-          <span>Pick Y {Number(state.pickPlaneY || 0).toFixed(3)}</span>
-          <input className="simu-range" type="range" min={PLAN_BOUNDS.yMin} max={PLAN_BOUNDS.yMax} step={0.005} value={state.pickPlaneY} onChange={(e) => state.setPickPlaneY(Number(e.target.value))} />
-        </label>
+        <div className="simu-workplane-block">
+          <div className="simu-field-group-title">Work Plane</div>
+          <div className="simu-segment-row">
+            {[
+              ['xz', 'XZ Floor'],
+              ['xy', 'XY Wall'],
+              ['yz', 'YZ Wall'],
+            ].map(([mode, label]) => (
+              <button
+                key={mode}
+                className={`simu-segment-btn ${state.pickPlaneMode === mode ? 'active' : ''}`}
+                onClick={() => state.setPickPlaneMode(mode)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="simu-field dense">
+            <span>{pickPlaneMeta.label} {pickPlaneOffset.toFixed(3)}</span>
+            <input
+              className="simu-range"
+              type="range"
+              min={pickPlaneMeta.min}
+              max={pickPlaneMeta.max}
+              step={0.005}
+              value={pickPlaneOffset}
+              onChange={(e) => state.setPickPlaneY(Number(e.target.value))}
+            />
+          </label>
+          <label className="simu-field dense">
+            <span>Plane Rotate {Number(state.pickPlaneRotation || 0).toFixed(0)} deg</span>
+            <input
+              className="simu-range"
+              type="range"
+              min={-90}
+              max={90}
+              step={5}
+              value={state.pickPlaneRotation}
+              onChange={(e) => state.setPickPlaneRotation(Number(e.target.value))}
+              disabled={state.pickPlaneMode === 'xz'}
+            />
+          </label>
+        </div>
       </section>
       <section className="simu-card">
         <div className={`simu-validation-card ${validationClass}`}>
