@@ -38,7 +38,8 @@ npm install
 
 - 本地联调建议保持 `127.0.0.1:9002`。
 - 若需暴露到局域网/公网（`0.0.0.0` 或具体网卡 IP），启动网关前必须设置 `MOTORBRIDGE_WS_TOKEN`。
-- UI 侧在 WS 握手时需携带 token（`x-motorbridge-token` 或 `Authorization: Bearer ...`）。
+- 浏览器原生 `WebSocket` 不能自定义握手 header。远程 token 部署请把 Studio 放在受控反向代理后，由代理注入 `x-motorbridge-token` / `Authorization`，或改用自定义非浏览器客户端。
+- 没有反向代理时，Studio 只建议直连本机回环地址上的网关。
 
 ### A. Damiao 串口桥（`dm-serial`）
 
@@ -154,6 +155,9 @@ UI 连接参数：
 
 - Linux SocketCAN 下通道写 `can0`，不要写 `can0@1000000`。
 - `dm-serial` 只支持 Damiao。
+- Studio 已对齐 MotorBridge `v0.3.5` WS 接口。连接后会尝试读取 `capabilities`；如果旧网关不支持该 op，UI 会使用内置的 `v0.3.5` 能力表兜底。
+- RobStride 扫描默认 host_id 候选为 `0xFD,0xFF,0xFE`。如果是异常固件或现场恢复场景，可手动追加 `0x00,0xAA`。
+- RobStride `pos_vel` 映射到原生 Position 模式。有效字段是目标位置、`vlim`、以及作为 `loc_kp` 使用的 `kp`；该模式下速度、`kd` 和力矩会被网关忽略。
 - 日志里的 `ws disconnected` 常见于浏览器重连，不一定是网关故障；看网关是否仍在监听。
 
 深入排障文档：

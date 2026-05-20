@@ -31,7 +31,8 @@ Security note:
 
 - Keep `127.0.0.1:9002` for local setup.
 - If you must expose `ws_gateway` on LAN/WAN (`0.0.0.0` or a host IP), set `MOTORBRIDGE_WS_TOKEN` before starting gateway.
-- The UI client must then send token header (`x-motorbridge-token` or `Authorization: Bearer ...`) during WS handshake.
+- Browser-native `WebSocket` cannot set custom handshake headers. For token-protected remote deployments, put Studio behind a controlled reverse proxy that injects `x-motorbridge-token` / `Authorization`, or use a custom non-browser client.
+- Studio is intended to connect directly only to local loopback gateways unless such a proxy is in place.
 
 ### A. Damiao over `dm-serial`
 
@@ -147,6 +148,9 @@ In UI connection panel:
 
 - Linux SocketCAN channel should be `can0` (do not use `can0@1000000`).
 - `dm-serial` is Damiao-only transport.
+- Studio aligns with the MotorBridge `v0.3.5` WS interface. On connect it tries `capabilities`; if an older gateway does not expose that op, the UI falls back to the built-in `v0.3.5` capability table.
+- RobStride scan defaults to host ID candidates `0xFD,0xFF,0xFE`. Add `0x00,0xAA` manually if you are recovering unusual firmware settings.
+- RobStride `pos_vel` maps to native Position mode. Effective fields are target position, `vlim`, and `kp` as `loc_kp`; velocity, `kd`, and torque are ignored by the gateway for this mode.
 - `ws disconnected` in logs is often browser reconnect behavior; check whether gateway is still listening.
 
 For detailed CAN troubleshooting, see:
