@@ -11,7 +11,7 @@ describe('utils normalizeHits', () => {
           { probe: 2, device_id: 71, responder_id: 254, feedback_id: 0xfd },
         ],
       },
-      'rs-00',
+      'rs-00'
     );
 
     expect(normalized).toHaveLength(2);

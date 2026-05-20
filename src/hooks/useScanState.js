@@ -61,7 +61,7 @@ export function useScanState({
       confirmResolverRef.current = null;
       if (resolve) resolve(false);
     },
-    [],
+    []
   );
 
   const closeConfirmDialog = (result) => {
@@ -98,9 +98,9 @@ export function useScanState({
     setActiveMotorKey('');
     try {
       if (typeof window !== 'undefined') {
-    window.localStorage.removeItem('motorbridge_studio_hits_v1');
-    window.localStorage.removeItem('motorbridge_studio_controls_v1');
-    window.localStorage.removeItem('motorbridge_studio_active_motor_v1');
+        window.localStorage.removeItem('motorbridge_studio_hits_v1');
+        window.localStorage.removeItem('motorbridge_studio_controls_v1');
+        window.localStorage.removeItem('motorbridge_studio_active_motor_v1');
       }
     } catch {
       // ignore localStorage failures

@@ -21,9 +21,12 @@ export function LiveMoveScheduler({
   const pendingLiveMoveRef = React.useRef(null);
   const moveSeqRef = React.useRef(0);
 
-  React.useEffect(() => () => {
-    if (liveMoveTimerRef.current) clearTimeout(liveMoveTimerRef.current);
-  }, []);
+  React.useEffect(
+    () => () => {
+      if (liveMoveTimerRef.current) clearTimeout(liveMoveTimerRef.current);
+    },
+    []
+  );
 
   React.useEffect(() => {
     if (!armBulkBusy) return;
@@ -41,7 +44,7 @@ export function LiveMoveScheduler({
       const clamped = clampByLimit(raw, lim);
       return { raw, clamped, clipped: Math.abs(raw - clamped) > 1e-9, lim };
     },
-    [limits],
+    [limits]
   );
 
   const scheduleLiveMove = React.useCallback(
@@ -76,9 +79,8 @@ export function LiveMoveScheduler({
         const ok = await controlMotor(pending.row.hit, 'move', { target: checked.clamped });
         if (ok || pending.seq !== moveSeqRef.current) return;
 
-        const refreshed = typeof refreshMotorState === 'function'
-          ? await refreshMotorState(pending.row.hit)
-          : null;
+        const refreshed =
+          typeof refreshMotorState === 'function' ? await refreshMotorState(pending.row.hit) : null;
         const actualPos = Number(refreshed?.pos);
         const fallbackTarget = Number.isFinite(actualPos) ? actualPos : pending.previousTarget;
         patchControl(pending.row.key, { target: fallbackTarget });
@@ -98,7 +100,7 @@ export function LiveMoveScheduler({
       setLimitWarn,
       showLimitToast,
       t,
-    ],
+    ]
   );
 
   const onSliderTargetChange = React.useCallback(
@@ -107,7 +109,7 @@ export function LiveMoveScheduler({
       patchControl(activeRow.key, { target: parseNum(targetText, activeRow.control?.target ?? 0) });
       scheduleLiveMove(activeRow, targetText);
     },
-    [activeRow, patchControl, scheduleLiveMove],
+    [activeRow, patchControl, scheduleLiveMove]
   );
 
   return children({ clampTargetForRow, onSliderTargetChange });

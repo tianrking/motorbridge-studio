@@ -20,7 +20,10 @@ export function TrailManager({ children }) {
   const [urdfSeqLibrary, setUrdfSeqLibrary] = usePersistedState(
     'motorbridge_studio_arm_seq_library_v1',
     [],
-    (cached) => (Array.isArray(cached) ? cached.filter((x) => x && Array.isArray(x.points) && x.points.length >= 2) : []),
+    (cached) =>
+      Array.isArray(cached)
+        ? cached.filter((x) => x && Array.isArray(x.points) && x.points.length >= 2)
+        : []
   );
   const [urdfSeqPick, setUrdfSeqPick] = React.useState('');
   const importTrailInputRef = React.useRef(null);
@@ -51,9 +54,19 @@ export function TrailManager({ children }) {
             if (p && typeof p === 'object') {
               const joints = p.joints && typeof p.joints === 'object' ? p.joints : undefined;
               if (p.pos && typeof p.pos === 'object') {
-                return { x: Number(p.pos.x), y: Number(p.pos.y), z: Number(p.pos.z), ...(joints ? { joints } : {}) };
+                return {
+                  x: Number(p.pos.x),
+                  y: Number(p.pos.y),
+                  z: Number(p.pos.z),
+                  ...(joints ? { joints } : {}),
+                };
               }
-              return { x: Number(p.x), y: Number(p.y), z: Number(p.z), ...(joints ? { joints } : {}) };
+              return {
+                x: Number(p.x),
+                y: Number(p.y),
+                z: Number(p.z),
+                ...(joints ? { joints } : {}),
+              };
             }
             return null;
           })
@@ -72,7 +85,7 @@ export function TrailManager({ children }) {
         if (e.target) e.target.value = '';
       }
     },
-    [t],
+    [t]
   );
 
   const replayImportedTrail = React.useCallback(() => {
@@ -98,7 +111,9 @@ export function TrailManager({ children }) {
       return;
     }
     const now = Date.now();
-    const base = String(urdfImportedTrail.name || '').replace(/\.json$/i, '').trim();
+    const base = String(urdfImportedTrail.name || '')
+      .replace(/\.json$/i, '')
+      .trim();
     const name = base || `seq_${new Date(now).toLocaleTimeString()}`;
     const item = {
       id: `seq_${now}_${Math.random().toString(36).slice(2, 8)}`,
@@ -127,7 +142,7 @@ export function TrailManager({ children }) {
       setUrdfImportInfo(t('arm_seq_loaded', { name: item.name, count: item.points.length }));
       if (opts?.replay) setUrdfReplaySeq((v) => v + 1);
     },
-    [t, urdfSeqLibrary, urdfSeqPick],
+    [t, urdfSeqLibrary, urdfSeqPick]
   );
 
   const deleteSelectedSequence = React.useCallback(() => {

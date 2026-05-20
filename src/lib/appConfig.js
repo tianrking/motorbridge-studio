@@ -361,9 +361,7 @@ export const DAMIAO_ARM_PARAM_DEFS = [
 ];
 
 export const DAMIAO_CTRL_PARAM_RID = Object.freeze(
-  Object.fromEntries(
-    DAMIAO_ARM_PARAM_DEFS.slice(0, 6).map((item) => [item.key, item.rid]),
-  ),
+  Object.fromEntries(DAMIAO_ARM_PARAM_DEFS.slice(0, 6).map((item) => [item.key, item.rid]))
 );
 
 export const DAMIAO_RW_REGISTER_DEFS = [
@@ -412,7 +410,8 @@ export const DAMIAO_REGISTER_SNAPSHOT_FIELDS = Object.freeze(
   Object.fromEntries(
     DAMIAO_RW_REGISTER_DEFS.map((def) => [
       def.rid,
-      DAMIAO_REGISTER_SNAPSHOT_FIELD_OVERRIDES[def.rid] || normalizeDamiaoSnapshotField(def.variable),
-    ]),
-  ),
+      DAMIAO_REGISTER_SNAPSHOT_FIELD_OVERRIDES[def.rid] ||
+        normalizeDamiaoSnapshotField(def.variable),
+    ])
+  )
 );

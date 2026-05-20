@@ -44,15 +44,18 @@ export function SequenceManager({
     return () => clearTimeout(timer);
   }, [demoToast, demoBusy, setDemoToast]);
 
-  const showDemoToast = React.useCallback((tone, title, detail = '') => {
-    setDemoToast((prev) => ({
-      visible: true,
-      seq: prev.seq + 1,
-      tone,
-      title,
-      detail,
-    }));
-  }, [setDemoToast]);
+  const showDemoToast = React.useCallback(
+    (tone, title, detail = '') => {
+      setDemoToast((prev) => ({
+        visible: true,
+        seq: prev.seq + 1,
+        tone,
+        title,
+        detail,
+      }));
+    },
+    [setDemoToast]
+  );
 
   const stopDemo = React.useCallback(() => {
     demoAbortRef.current.cancelled = true;
@@ -79,7 +82,11 @@ export function SequenceManager({
     setDemoBusy(true);
     try {
       if (demoAction === 'safe_seq_scan') {
-        showDemoToast('info', t('arm_demo_running', { name: t('arm_demo_safe_seq_scan') }), t('arm_demo_scan'));
+        showDemoToast(
+          'info',
+          t('arm_demo_running', { name: t('arm_demo_safe_seq_scan') }),
+          t('arm_demo_scan')
+        );
         throwIfStopped();
         await scanRobotArmAll();
         throwIfStopped();
@@ -113,7 +120,8 @@ export function SequenceManager({
         index: idx + 1,
       }));
       let okCount = 0;
-      const demoName = demoAction === 'safe_seq_scan' ? t('arm_demo_safe_seq_scan') : t('arm_demo_safe_seq');
+      const demoName =
+        demoAction === 'safe_seq_scan' ? t('arm_demo_safe_seq_scan') : t('arm_demo_safe_seq');
       for (const step of namedSeq) {
         throwIfStopped();
         const lim = jointLimit(step.row.joint, limits);
@@ -129,7 +137,7 @@ export function SequenceManager({
             joint: `J${step.row.joint}`,
             phase: step.note,
             target: target.toFixed(3),
-          }),
+          })
         );
         const ok = await controlMotor(step.row.hit, 'move', {
           mode,
@@ -144,7 +152,7 @@ export function SequenceManager({
       showDemoToast(
         okCount === namedSeq.length ? 'ok' : 'warn',
         okCount === namedSeq.length ? t('arm_demo_done') : t('arm_demo_failed'),
-        t('arm_demo_result', { ok: okCount, total: namedSeq.length }),
+        t('arm_demo_result', { ok: okCount, total: namedSeq.length })
       );
     } catch (e) {
       if (e?.message === 'demo stopped') {

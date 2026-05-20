@@ -23,13 +23,26 @@ function naturalWaypointCompare(a, b) {
 export function SimuPage() {
   const state = useSimuState();
   const bridge = useSimuBridge();
+  const {
+    followWsState,
+    localWaypoints,
+    setEditPose,
+    setSelectedWaypointId,
+    setSequenceIds,
+    setTargets,
+    setWaypointId,
+    setWaypointLabel,
+    syncToWs,
+    targets,
+  } = state;
+  const { connected, latestState, send } = bridge;
   const waypointsSig = React.useMemo(
-    () => JSON.stringify(bridge.latestState?.waypoints || {}),
-    [bridge.latestState?.waypoints],
+    () => JSON.stringify(latestState?.waypoints || {}),
+    [latestState?.waypoints],
   );
   const waypointList = React.useMemo(() => {
     const remote = JSON.parse(waypointsSig || '{}');
-    const w = { ...(state.localWaypoints || {}), ...remote };
+    const w = { ...(localWaypoints || {}), ...remote };
     return Object.entries(w).map(([id, p]) => ({
       id,
       label: String(p?.label || p?.name || id),
@@ -40,16 +53,16 @@ export function SimuPage() {
       pitch: Number(p?.pitch || 0),
       yaw: Number(p?.yaw || 0),
     })).sort(naturalWaypointCompare);
-  }, [waypointsSig, state.localWaypoints]);
+  }, [waypointsSig, localWaypoints]);
   const enhancedState = {
     ...state,
     waypointList,
     selectWaypoint: (wp) => {
-      state.setSelectedWaypointId(wp.id);
-      state.setWaypointId(wp.id);
-      state.setWaypointLabel(wp.label || wp.id);
+      setSelectedWaypointId(wp.id);
+      setWaypointId(wp.id);
+      setWaypointLabel(wp.label || wp.id);
       const pv = backendToViewerPose(wp);
-      state.setEditPose({
+      setEditPose({
         x: pv.x, y: pv.y, z: pv.z, roll: wp.roll, pitch: wp.pitch, yaw: wp.yaw,
       });
     },
@@ -57,25 +70,25 @@ export function SimuPage() {
 
   React.useEffect(() => {
     const ids = waypointList.map((w) => w.id);
-    state.setSequenceIds((prev) => {
+    setSequenceIds((prev) => {
       const kept = prev.filter((id) => ids.includes(id));
       const append = ids.filter((id) => !kept.includes(id));
       return [...kept, ...append];
     });
-  }, [waypointList]);
+  }, [waypointList, setSequenceIds]);
 
   React.useEffect(() => {
-    if (!state.syncToWs || !bridge.connected) return;
+    if (!syncToWs || !connected) return;
     const t = setTimeout(() => {
-      bridge.send('sim_set_joint_targets', { targets: state.targets }, 1200).catch(() => {});
+      send('sim_set_joint_targets', { targets }, 1200).catch(() => {});
     }, 80);
     return () => clearTimeout(t);
-  }, [state.syncToWs, state.targets, bridge.connected, bridge.send]);
+  }, [syncToWs, targets, connected, send]);
 
   React.useEffect(() => {
-    if (!state.followWsState || !bridge.latestState?.joint_targets) return;
-    const jt = bridge.latestState.joint_targets;
-    state.setTargets((prev) => ({
+    if (!followWsState || !latestState?.joint_targets) return;
+    const jt = latestState.joint_targets;
+    setTargets((prev) => ({
       ...prev,
       joint1: Number(jt.joint1 ?? prev.joint1),
       joint2: Number(jt.joint2 ?? prev.joint2),
@@ -85,7 +98,7 @@ export function SimuPage() {
       joint6: Number(jt.joint6 ?? prev.joint6),
       joint7: Number(jt.joint7 ?? prev.joint7),
     }));
-  }, [state.followWsState, bridge.latestState]);
+  }, [followWsState, latestState, setTargets]);
 
   return (
     <div className="simu-root">

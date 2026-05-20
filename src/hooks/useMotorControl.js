@@ -1,4 +1,11 @@
-import { defaultControlsForHit, getResponseValue, mergeHitsByVendor, motorKey, normalizeControlValue, toHex } from '../lib/utils';
+import {
+  defaultControlsForHit,
+  getResponseValue,
+  mergeHitsByVendor,
+  motorKey,
+  normalizeControlValue,
+  toHex,
+} from '../lib/utils';
 import { DAMIAO_REGISTER_SNAPSHOT_FIELDS } from '../lib/appConfig';
 import {
   controlMotorOp,
@@ -30,7 +37,7 @@ export function useMotorControl({
         Object.entries(patch || {}).map(([field, value]) => [
           field,
           normalizeControlValue(field, value, base[field]),
-        ]),
+        ])
       );
       return { ...prev, [k]: { ...base, ...normalizedPatch } };
     });
@@ -86,7 +93,7 @@ export function useMotorControl({
     if (Number.isFinite(numericValue)) {
       if (paramId === 0x3016) patch.pos = numericValue;
       if (paramId === 0x3017) patch.vel = numericValue;
-      if (paramId === 0x302C) patch.torq = numericValue;
+      if (paramId === 0x302c) patch.torq = numericValue;
       if (paramId === 0x3022) patch.status = numericValue;
     }
 
@@ -100,7 +107,11 @@ export function useMotorControl({
     const ok = await (askConfirm
       ? askConfirm({
           title: t('confirm_dialog_title'),
-          message: t('confirm_set_id', { vendor: h.vendor, esc: toHex(h.esc_id), mst: toHex(h.mst_id) }),
+          message: t('confirm_set_id', {
+            vendor: h.vendor,
+            esc: toHex(h.esc_id),
+            mst: toHex(h.mst_id),
+          }),
           danger: true,
         })
       : Promise.resolve(true));
@@ -166,7 +177,7 @@ export function useMotorControl({
     op,
     payload = {},
     timeoutMs = 4000,
-    options = { setTarget: true, closeBusAfter: true },
+    options = { setTarget: true, closeBusAfter: true }
   ) => {
     try {
       if (options?.setTarget !== false) {

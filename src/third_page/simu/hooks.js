@@ -310,7 +310,7 @@ export function useSimuBridge() {
       bridge.disconnect(true);
       bridgeRef.current = null;
     };
-  }, [applyWaypointEvent]);
+  }, [applyWaypointEvent, url]);
 
   const connectWs = React.useCallback(() => {
     const b = bridgeRef.current;

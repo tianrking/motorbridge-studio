@@ -358,10 +358,11 @@ function PlanPanel({ state, bridge }) {
   const [busy, setBusy] = React.useState(false);
   const [validation, setValidation] = React.useState({ grade: 'idle', message: 'Connect WS to validate reachability.' });
   const [validationBusy, setValidationBusy] = React.useState(false);
-  const pose = bridge.latestState?.pose || {};
+  const { connected, latestState, taskEvent, validateWaypoint } = bridge;
+  const pose = latestState?.pose || {};
   const poseViewer = backendToViewerPose(pose);
-  const motion = bridge.latestState?.motion || {};
-  const activeMotionId = motion?.current_id || bridge.taskEvent?.data?.task?.current_id || '';
+  const motion = latestState?.motion || {};
+  const activeMotionId = motion?.current_id || taskEvent?.data?.task?.current_id || '';
   const labelById = React.useMemo(() => {
     const out = new Map();
     state.waypointList.forEach((wp) => out.set(wp.id, wp.label || wp.id));
@@ -383,14 +384,14 @@ function PlanPanel({ state, bridge }) {
 
   const validateCandidate = React.useCallback(async ({ silent = false } = {}) => {
     const { point } = makeCandidatePoint();
-    if (!bridge.connected) {
+    if (!connected) {
       const local = { grade: 'idle', message: 'WS disconnected: local preview only, reachability unknown.' };
       if (!silent) setValidation(local);
       return { ok: true, data: local, point };
     }
     setValidationBusy(true);
     try {
-      const ret = await bridge.validateWaypoint(point);
+      const ret = await validateWaypoint(point);
       if (!ret?.ok) {
         const next = { grade: 'bad', message: `Validation failed: ${ret?.error || 'unknown error'}` };
         setValidation(next);
@@ -418,10 +419,10 @@ function PlanPanel({ state, bridge }) {
     } finally {
       setValidationBusy(false);
     }
-  }, [bridge.connected, bridge.validateWaypoint, makeCandidatePoint]);
+  }, [connected, validateWaypoint, makeCandidatePoint]);
 
   React.useEffect(() => {
-    if (!bridge.connected) {
+    if (!connected) {
       setValidation({ grade: 'idle', message: 'WS disconnected: local preview only, reachability unknown.' });
       return undefined;
     }
@@ -429,7 +430,7 @@ function PlanPanel({ state, bridge }) {
       validateCandidate({ silent: true }).catch(() => {});
     }, 280);
     return () => window.clearTimeout(timer);
-  }, [bridge.connected, validateCandidate]);
+  }, [connected, validateCandidate]);
 
   const nextWaypointDraft = React.useCallback((usedIds) => {
     const ids = new Set(usedIds.map((id) => String(id || '').trim()).filter(Boolean));

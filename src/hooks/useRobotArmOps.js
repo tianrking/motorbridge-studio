@@ -187,8 +187,10 @@ export function useRobotArmOps({
         try {
           const writeValues = Object.fromEntries(
             writeDefs
-              .filter((def) => row?.values && Object.prototype.hasOwnProperty.call(row.values, def.key))
-              .map((def) => [def.key, row.values[def.key]]),
+              .filter(
+                (def) => row?.values && Object.prototype.hasOwnProperty.call(row.values, def.key)
+              )
+              .map((def) => [def.key, row.values[def.key]])
           );
           await writeDamiaoControlParams(row.hit, writeValues, {
             store: true,

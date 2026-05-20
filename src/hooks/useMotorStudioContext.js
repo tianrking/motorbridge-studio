@@ -38,13 +38,13 @@ export function MotorStudioProvider({ value, children }) {
               React.createElement(
                 LogsContext.Provider,
                 { value: value.logs },
-                React.createElement(WorkspaceContext.Provider, { value: value.workspace }, children),
-              ),
-            ),
-          ),
-        ),
-      ),
-    ),
+                React.createElement(WorkspaceContext.Provider, { value: value.workspace }, children)
+              )
+            )
+          )
+        )
+      )
+    )
   );
 }
 
@@ -92,6 +92,6 @@ export function useMotorStudioContext() {
       ...studio.logs,
       ...studio.workspace,
     }),
-    [studio],
+    [studio]
   );
 }

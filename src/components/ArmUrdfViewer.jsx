@@ -190,6 +190,7 @@ export function ArmUrdfViewer({
   const pickPlaneYRef = React.useRef(Number(pickPlaneY) || 0.18);
   const pickBoundsRef = React.useRef(pickBounds);
   const previewMarkerRef = React.useRef(previewMarker);
+  const plannedPathRef = React.useRef(plannedPath);
   const tmpWorldRef = React.useRef(new THREE.Vector3());
   const waypointGroupRef = React.useRef(null);
   const waypointMeshMapRef = React.useRef(new Map());
@@ -229,6 +230,9 @@ export function ArmUrdfViewer({
   React.useEffect(() => {
     previewMarkerRef.current = previewMarker;
   }, [previewMarker]);
+  React.useEffect(() => {
+    plannedPathRef.current = plannedPath;
+  }, [plannedPath]);
 
   const applyTrajectoryColor = React.useCallback((hexColor) => {
     const color = new THREE.Color(hexColor || '#ff0000');
@@ -820,7 +824,7 @@ export function ArmUrdfViewer({
     scene.add(planPathLine);
     planPathLineRef.current = planPathLine;
     const initialPlanFlat = [];
-    (Array.isArray(plannedPath) ? plannedPath : []).forEach((p) => {
+    (Array.isArray(plannedPathRef.current) ? plannedPathRef.current : []).forEach((p) => {
       const x = Number(p?.x);
       const y = Number(p?.y);
       const z = Number(p?.z);
@@ -1104,6 +1108,9 @@ export function ArmUrdfViewer({
     };
     window.addEventListener('resize', resize);
 
+    const waypointMeshMap = waypointMeshMapRef.current;
+    const waypointLabelMap = waypointLabelMapRef.current;
+
     return () => {
       window.removeEventListener('resize', resize);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
@@ -1135,15 +1142,15 @@ export function ArmUrdfViewer({
       pickPlaneMeshRef.current = null;
       previewMeshRef.current = null;
       manipulatorGroupRef.current = null;
-      waypointMeshMapRef.current.forEach((marker) => {
+      waypointMeshMap.forEach((marker) => {
         marker.geometry?.dispose?.();
         marker.material?.dispose?.();
       });
-      waypointMeshMapRef.current.clear();
-      waypointLabelMapRef.current.forEach((label) => {
+      waypointMeshMap.clear();
+      waypointLabelMap.forEach((label) => {
         disposeMaterial(label.material);
       });
-      waypointLabelMapRef.current.clear();
+      waypointLabelMap.clear();
       endEffectorRef.current = null;
       trailPointsRef.current = [];
       trailFramesRef.current = [];

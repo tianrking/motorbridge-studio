@@ -47,7 +47,7 @@ export function ZeroDialogManager({
 
   const zeroSafety = React.useMemo(
     () => computeZeroSafety(robotArmJointRows),
-    [computeZeroSafety, robotArmJointRows],
+    [computeZeroSafety, robotArmJointRows]
   );
 
   const askZeroConfirm = React.useCallback((cfg) => {
@@ -91,7 +91,10 @@ export function ZeroDialogManager({
           continue;
         }
         const refreshedHit = await refreshMotorState(row.hit);
-        refreshedRows.push({ ...row, hit: refreshedHit || { ...row.hit, pos: Number.NaN, online: false } });
+        refreshedRows.push({
+          ...row,
+          hit: refreshedHit || { ...row.hit, pos: Number.NaN, online: false },
+        });
         await sleep(20);
       }
       await sleep(80);
@@ -103,7 +106,10 @@ export function ZeroDialogManager({
           .map((x) => `J${x.joint}${x.pos == null ? '(?)' : `(${x.pos.toFixed(2)})`}`)
           .join(', ');
         const more = freshSafety.notReady.length > 4 ? ` +${freshSafety.notReady.length - 4}` : '';
-        const msg = t('arm_zero_all_blocked', { joints: `${short}${more}`, eps: ZERO_SAFE_EPS_RAD.toFixed(2) });
+        const msg = t('arm_zero_all_blocked', {
+          joints: `${short}${more}`,
+          eps: ZERO_SAFE_EPS_RAD.toFixed(2),
+        });
         setLimitWarn(msg);
         showLimitToast(msg);
         const forceConfirm = await askZeroConfirm({
