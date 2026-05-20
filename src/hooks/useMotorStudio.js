@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motorKey, normalizeControlForHit, ts } from '../lib/utils';
 import { mapResponseToHit } from '../lib/motorStudioOps';
 import { usePersistedState } from './usePersistedState';
@@ -32,6 +32,7 @@ export function useMotorStudio() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [stateSnapshot, setStateSnapshot] = useState('(no state yet)');
   const [logs, setLogs] = useState([]);
+  const telemetryTargetRef = useRef('');
 
   const pushLog = (msg, level = 'info') => {
     setLogs((prev) => [...prev, { t: ts(), msg, level }].slice(-500));
@@ -128,6 +129,28 @@ export function useMotorStudio() {
   const activeControl = activeMotor
     ? normalizeControlForHit(activeMotor, controls[motorKey(activeMotor)])
     : null;
+
+  useEffect(() => {
+    if (!connectionState.connected) {
+      telemetryTargetRef.current = '';
+      return;
+    }
+    if (!activeMotor) return;
+    const key = `${motorKey(activeMotor)}:${activeMotor.model || activeMotor.model_guess || ''}`;
+    if (telemetryTargetRef.current === key) return;
+    telemetryTargetRef.current = key;
+    connectionState
+      .setTargetFor(
+        activeMotor.vendor,
+        activeMotor.model || scanState.vendors?.[activeMotor.vendor]?.model || activeMotor.vendor,
+        activeMotor.esc_id,
+        activeMotor.mst_id
+      )
+      .catch((e) => {
+        telemetryTargetRef.current = '';
+        pushLog(`telemetry target setup failed: ${e.message || e}`, 'err');
+      });
+  }, [activeMotor, connectionState, scanState.vendors]);
 
   const clearLogs = () => setLogs([]);
   const clearOfflineMotors = useCallback(
