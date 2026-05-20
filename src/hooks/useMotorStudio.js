@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motorKey, normalizeControlForHit, ts } from '../lib/utils';
+import { mapResponseToHit } from '../lib/motorStudioOps';
 import { usePersistedState } from './usePersistedState';
 import { useI18n } from '../i18n';
 import { useConnectionState } from './useConnectionState';
@@ -36,7 +37,27 @@ export function useMotorStudio() {
     setLogs((prev) => [...prev, { t: ts(), msg, level }].slice(-500));
   };
 
-  const connectionState = useConnectionState({ pushLog, setStateSnapshot });
+  const handleGatewayState = useCallback(
+    (state) => {
+      setHits((prev) => {
+        if (!activeMotorKey) return prev;
+        const index = prev.findIndex((h) => motorKey(h) === activeMotorKey);
+        if (index < 0) return prev;
+        const current = prev[index];
+        if (state?.vendor && String(state.vendor) !== String(current.vendor)) return prev;
+        const next = [...prev];
+        next[index] = mapResponseToHit(current, state);
+        return next;
+      });
+    },
+    [activeMotorKey, setHits]
+  );
+
+  const connectionState = useConnectionState({
+    pushLog,
+    setStateSnapshot,
+    onGatewayState: handleGatewayState,
+  });
   const preferences = usePreferences();
 
   const scanState = useScanState({

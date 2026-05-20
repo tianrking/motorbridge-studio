@@ -3,7 +3,7 @@ import { WsGatewayClient } from '../wsGatewayClient';
 import { useI18n } from '../i18n';
 import { normalizeGatewayCapabilities, WS_V1_FALLBACK_CAPABILITIES } from '../lib/wsCapabilities';
 
-export function useGatewayBridge({ wsUrl, channel, pushLog, setStateSnapshot }) {
+export function useGatewayBridge({ wsUrl, channel, pushLog, setStateSnapshot, onGatewayState }) {
   const { t } = useI18n();
   const [connText, setConnText] = useState(t('conn_disconnected'));
   const [connected, setConnected] = useState(false);
@@ -59,6 +59,7 @@ export function useGatewayBridge({ wsUrl, channel, pushLog, setStateSnapshot }) 
         },
         onState: (st) => {
           setStateSnapshot(JSON.stringify(st, null, 2));
+          onGatewayState?.(st);
         },
         onMessage: (msg) => {
           if (msg?.type === 'event' && msg?.event === 'connected' && msg?.data) {
@@ -193,6 +194,11 @@ export function useGatewayBridge({ wsUrl, channel, pushLog, setStateSnapshot }) 
       10000
     );
     if (!ret.ok) throw new Error(ret.error || 'set_target failed');
+    try {
+      await sendCmd('state_stream', { enabled: true }, 3000);
+    } catch (e) {
+      pushLog(`state stream enable failed: ${e.message || e}`, 'err');
+    }
   };
 
   return {
