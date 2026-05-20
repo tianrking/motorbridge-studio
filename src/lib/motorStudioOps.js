@@ -87,7 +87,7 @@ export function mapParamStreamToHit(h, data) {
     if (Number.isFinite(iqf)) patch.iqf = iqf;
     if (Number.isFinite(torque)) patch.torq = torque;
     if (Number.isFinite(vbus)) patch.vbus = vbus;
-    if (Number.isFinite(temp)) patch.t_mos = temp;
+    if (Number.isFinite(temp) && temp > 0) patch.t_mos = temp;
     if (Number.isFinite(runMode)) {
       const names = { 0: 'MIT', 1: 'Position', 2: 'Velocity', 3: 'Current', 5: 'CSP' };
       patch.status = runMode;

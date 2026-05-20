@@ -42,7 +42,7 @@ describe('motor studio ops', () => {
           iqf: 0.31,
           VBUS: 24.1,
           torque_fdb: 0.08,
-          drv_temp: 36,
+          drv_temp: 0,
         },
       }
     );
@@ -52,7 +52,7 @@ describe('motor studio ops', () => {
     expect(next.iqf).toBeCloseTo(0.31);
     expect(next.torq).toBeCloseTo(0.08);
     expect(next.vbus).toBeCloseTo(24.1);
-    expect(next.t_mos).toBeCloseTo(36);
+    expect(next.t_mos).toBeUndefined();
     expect(next.status_name).toBe('Position');
     expect(next.feedback_source).toBe('robstride_observation_params');
   });
