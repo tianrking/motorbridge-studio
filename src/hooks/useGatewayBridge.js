@@ -196,6 +196,15 @@ export function useGatewayBridge({ wsUrl, channel, pushLog, setStateSnapshot, on
     if (!ret.ok) throw new Error(ret.error || 'set_target failed');
     if (String(vendor) === 'robstride') {
       try {
+        await sendCmd(
+          'robstride_write_param',
+          { param_id: 0x7026, type: 'u16', value: 3, timeout_ms: 500 },
+          3000
+        );
+      } catch (e) {
+        pushLog(`robstride report period setup failed: ${e.message || e}`, 'err');
+      }
+      try {
         await sendCmd('set_active_report', { enabled: true }, 3000);
       } catch (e) {
         pushLog(`robstride active report enable failed: ${e.message || e}`, 'err');
