@@ -1,6 +1,7 @@
 import React from 'react';
 import { DAMIAO_RW_REGISTER_DEFS } from '../lib/appConfig';
 import {
+  canRobstrideRead,
   canRobstrideWrite,
   ROBSTRIDE_ACCESS_LABELS,
   ROBSTRIDE_PARAM_CATALOG,
@@ -8,7 +9,14 @@ import {
 } from '../lib/robstrideParamCatalog';
 import { SET_ID_VENDORS, VENDOR_LABELS } from '../lib/constants';
 import { modesForVendor } from '../lib/wsCapabilities';
-import { controlInputValue, formatLocal, getResponseValue, motorKey, parseNum, toHex } from '../lib/utils';
+import {
+  controlInputValue,
+  formatLocal,
+  getResponseValue,
+  motorKey,
+  parseNum,
+  toHex,
+} from '../lib/utils';
 import { useI18n } from '../i18n';
 import { useConnectionContext, usePreferencesContext } from '../hooks/useMotorStudioContext';
 
@@ -34,7 +42,11 @@ function Field({ label, value, onChange }) {
 }
 
 function MetaItem({ label, value }) {
-  return <div className="metaItem"><b>{label}</b> {value}</div>;
+  return (
+    <div className="metaItem">
+      <b>{label}</b> {value}
+    </div>
+  );
 }
 
 function positionSliderBounds(activeMotor) {
@@ -84,23 +96,25 @@ export function MotorDetailPanel({
   const vendor = String(activeMotor?.vendor || '').toLowerCase();
   const modeOptions = modesForVendor(gatewayCapabilities, vendor);
   const isRobstridePosVel = vendor === 'robstride' && activeControl?.mode === 'pos_vel';
-  const positionSliderEnabled = activeControl?.mode === 'pos_vel' || activeControl?.mode === 'force_pos';
-  const liveSliderEnabled = Boolean(uiPrefs?.generalSliderLiveMove) && positionSliderEnabled && connected;
+  const positionSliderEnabled =
+    activeControl?.mode === 'pos_vel' || activeControl?.mode === 'force_pos';
+  const liveSliderEnabled =
+    Boolean(uiPrefs?.generalSliderLiveMove) && positionSliderEnabled && connected;
   const sliderBounds = positionSliderBounds(activeMotor);
   const sliderTarget = Math.max(
     sliderBounds.min,
-    Math.min(sliderBounds.max, Number(activeControl?.target) || 0),
+    Math.min(sliderBounds.max, Number(activeControl?.target) || 0)
   );
   const rsParamIdNum = parseNum(rsParamId, Number.NaN);
   const selectedRobstrideParam = React.useMemo(
     () => ROBSTRIDE_PARAM_CATALOG.find((x) => Number(x.id) === Number(rsParamIdNum)) || null,
-    [rsParamIdNum],
+    [rsParamIdNum]
   );
   React.useEffect(() => {
     if (!selectedRobstrideParam) return;
     const cliType = toRobstrideCliType(selectedRobstrideParam.dataType);
-    if (cliType) setRsParamType(cliType);
-  }, [selectedRobstrideParam]);
+    if (cliType && cliType !== rsParamType) setRsParamType(cliType);
+  }, [rsParamType, selectedRobstrideParam]);
   const filteredRobstrideParams = React.useMemo(() => {
     const q = rsSearch.trim().toLowerCase();
     return ROBSTRIDE_PARAM_CATALOG.filter((x) => {
@@ -109,13 +123,27 @@ export function MotorDetailPanel({
       const idHex = `0x${Number(x.id).toString(16).toLowerCase()}`;
       return (
         idHex.includes(q) ||
-        String(x.name || '').toLowerCase().includes(q) ||
-        String(x.dataType || '').toLowerCase().includes(q)
+        String(x.name || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(x.dataType || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(x.desc || '')
+          .toLowerCase()
+          .includes(q)
       );
     });
   }, [rsAccessFilter, rsSearch]);
-  const selectedParamWritable = selectedRobstrideParam ? canRobstrideWrite(selectedRobstrideParam.access) : true;
-  const selectedParamTypeSupported = selectedRobstrideParam ? Boolean(toRobstrideCliType(selectedRobstrideParam.dataType)) : true;
+  const selectedParamWritable = selectedRobstrideParam
+    ? canRobstrideWrite(selectedRobstrideParam.access)
+    : true;
+  const selectedParamReadable = selectedRobstrideParam
+    ? canRobstrideRead(selectedRobstrideParam.access)
+    : true;
+  const selectedParamTypeSupported = selectedRobstrideParam
+    ? Boolean(toRobstrideCliType(selectedRobstrideParam.dataType))
+    : true;
   const key = activeMotor ? motorKey(activeMotor) : '';
   const patch = (field) => (e) => patchControl(key, { [field]: e.target.value });
   const patchNumber = (field) => (e) =>
@@ -124,7 +152,7 @@ export function MotorDetailPanel({
     () => () => {
       if (liveMoveTimerRef.current) clearTimeout(liveMoveTimerRef.current);
     },
-    [],
+    []
   );
   React.useEffect(() => {
     pendingLiveMoveRef.current = null;
@@ -137,7 +165,10 @@ export function MotorDetailPanel({
   const scheduleLiveTargetMove = React.useCallback(
     (targetText) => {
       if (!liveSliderEnabled || !activeMotor) return;
-      const target = Math.max(sliderBounds.min, Math.min(sliderBounds.max, parseNum(targetText, sliderTarget)));
+      const target = Math.max(
+        sliderBounds.min,
+        Math.min(sliderBounds.max, parseNum(targetText, sliderTarget))
+      );
       const seq = liveMoveSeqRef.current + 1;
       liveMoveSeqRef.current = seq;
       pendingLiveMoveRef.current = {
@@ -153,7 +184,8 @@ export function MotorDetailPanel({
         const ok = await controlMotor(activeMotor, 'move', { target: pending.target });
         if (ok || pending.seq !== liveMoveSeqRef.current) return;
 
-        const refreshed = typeof refreshMotorState === 'function' ? await refreshMotorState(activeMotor) : null;
+        const refreshed =
+          typeof refreshMotorState === 'function' ? await refreshMotorState(activeMotor) : null;
         const actualPos = Number(refreshed?.pos);
         patchControl(key, {
           target: Number.isFinite(actualPos) ? actualPos : pending.previousTarget,
@@ -171,7 +203,7 @@ export function MotorDetailPanel({
       sliderBounds.max,
       sliderBounds.min,
       sliderTarget,
-    ],
+    ]
   );
 
   const onSliderTargetChange = (rawValue) => {
@@ -254,8 +286,13 @@ export function MotorDetailPanel({
         </div>
       )}
       <div className="sectionTitle">
-        <h2>{VENDOR_LABELS[activeMotor.vendor] || activeMotor.vendor} {toHex(activeMotor.esc_id)}</h2>
-        <span>{t('mst')} {toHex(activeMotor.mst_id)} | {t('updated')} {formatLocal(activeMotor.updated_at_ms)}</span>
+        <h2>
+          {VENDOR_LABELS[activeMotor.vendor] || activeMotor.vendor} {toHex(activeMotor.esc_id)}
+        </h2>
+        <span>
+          {t('mst')} {toHex(activeMotor.mst_id)} | {t('updated')}{' '}
+          {formatLocal(activeMotor.updated_at_ms)}
+        </span>
       </div>
 
       <div className="metaGrid">
@@ -263,21 +300,48 @@ export function MotorDetailPanel({
         <MetaItem label={t('mst_id')} value={toHex(activeMotor.mst_id)} />
         <MetaItem label={t('probe')} value={toHex(activeMotor.probe)} />
         <MetaItem label={t('detect')} value={activeMotor.detected_by || '-'} />
-        <MetaItem label={t('online')} value={activeMotor.online === false ? t('offline') : t('online_unknown')} />
+        <MetaItem
+          label={t('online')}
+          value={activeMotor.online === false ? t('offline') : t('online_unknown')}
+        />
         <MetaItem label={t('model')} value={activeMotor.model_guess || activeMotor.model || '-'} />
-        <MetaItem label={t('status')} value={Number.isFinite(activeMotor.status) ? String(activeMotor.status) : '-'} />
-        <MetaItem label={t('pos')} value={Number.isFinite(activeMotor.pos) ? activeMotor.pos.toFixed(3) : '-'} />
-        <MetaItem label={t('vel')} value={Number.isFinite(activeMotor.vel) ? activeMotor.vel.toFixed(3) : '-'} />
-        <MetaItem label={t('torq')} value={Number.isFinite(activeMotor.torq) ? activeMotor.torq.toFixed(3) : '-'} />
+        <MetaItem
+          label={t('status')}
+          value={Number.isFinite(activeMotor.status) ? String(activeMotor.status) : '-'}
+        />
+        <MetaItem
+          label={t('pos')}
+          value={Number.isFinite(activeMotor.pos) ? activeMotor.pos.toFixed(3) : '-'}
+        />
+        <MetaItem
+          label={t('vel')}
+          value={Number.isFinite(activeMotor.vel) ? activeMotor.vel.toFixed(3) : '-'}
+        />
+        <MetaItem
+          label={t('torq')}
+          value={Number.isFinite(activeMotor.torq) ? activeMotor.torq.toFixed(3) : '-'}
+        />
         <MetaItem label={t('status_name')} value={activeMotor.status_name || '-'} />
-        <MetaItem label={t('t_mos')} value={Number.isFinite(activeMotor.t_mos) ? activeMotor.t_mos.toFixed(1) : '-'} />
+        <MetaItem
+          label={t('t_mos')}
+          value={Number.isFinite(activeMotor.t_mos) ? activeMotor.t_mos.toFixed(1) : '-'}
+        />
         <MetaItem
           label={t('t_rotor')}
           value={Number.isFinite(activeMotor.t_rotor) ? activeMotor.t_rotor.toFixed(1) : '-'}
         />
-        <MetaItem label={t('pmax')} value={Number.isFinite(activeMotor.pmax) ? activeMotor.pmax.toFixed(2) : '-'} />
-        <MetaItem label={t('vmax')} value={Number.isFinite(activeMotor.vmax) ? activeMotor.vmax.toFixed(2) : '-'} />
-        <MetaItem label={t('tmax')} value={Number.isFinite(activeMotor.tmax) ? activeMotor.tmax.toFixed(2) : '-'} />
+        <MetaItem
+          label={t('pmax')}
+          value={Number.isFinite(activeMotor.pmax) ? activeMotor.pmax.toFixed(2) : '-'}
+        />
+        <MetaItem
+          label={t('vmax')}
+          value={Number.isFinite(activeMotor.vmax) ? activeMotor.vmax.toFixed(2) : '-'}
+        />
+        <MetaItem
+          label={t('tmax')}
+          value={Number.isFinite(activeMotor.tmax) ? activeMotor.tmax.toFixed(2) : '-'}
+        />
       </div>
 
       <div className="grid3 denseGrid">
@@ -285,20 +349,48 @@ export function MotorDetailPanel({
           <label>{t('mode')}</label>
           <ModeSelect modes={modeOptions} value={activeControl.mode} onChange={patch('mode')} />
         </div>
-        <Field label={t('target')} value={controlInputValue(activeControl.target)} onChange={patchNumber('target')} />
-        <Field label={t('vlim')} value={controlInputValue(activeControl.vlim)} onChange={patchNumber('vlim')} />
-        <Field label={t('kp')} value={controlInputValue(activeControl.kp)} onChange={patchNumber('kp')} />
-        <Field label={t('kd')} value={controlInputValue(activeControl.kd)} onChange={patchNumber('kd')} />
-        <Field label={t('tau')} value={controlInputValue(activeControl.tau)} onChange={patchNumber('tau')} />
-        <Field label={t('ratio')} value={controlInputValue(activeControl.ratio)} onChange={patchNumber('ratio')} />
-        <Field label={t('new_esc')} value={controlInputValue(activeControl.newEsc)} onChange={patchNumber('newEsc')} />
-        <Field label={t('new_mst')} value={controlInputValue(activeControl.newMst)} onChange={patchNumber('newMst')} />
+        <Field
+          label={t('target')}
+          value={controlInputValue(activeControl.target)}
+          onChange={patchNumber('target')}
+        />
+        <Field
+          label={t('vlim')}
+          value={controlInputValue(activeControl.vlim)}
+          onChange={patchNumber('vlim')}
+        />
+        <Field
+          label={t('kp')}
+          value={controlInputValue(activeControl.kp)}
+          onChange={patchNumber('kp')}
+        />
+        <Field
+          label={t('kd')}
+          value={controlInputValue(activeControl.kd)}
+          onChange={patchNumber('kd')}
+        />
+        <Field
+          label={t('tau')}
+          value={controlInputValue(activeControl.tau)}
+          onChange={patchNumber('tau')}
+        />
+        <Field
+          label={t('ratio')}
+          value={controlInputValue(activeControl.ratio)}
+          onChange={patchNumber('ratio')}
+        />
+        <Field
+          label={t('new_esc')}
+          value={controlInputValue(activeControl.newEsc)}
+          onChange={patchNumber('newEsc')}
+        />
+        <Field
+          label={t('new_mst')}
+          value={controlInputValue(activeControl.newMst)}
+          onChange={patchNumber('newMst')}
+        />
       </div>
-      {isRobstridePosVel && (
-        <div className="tip">
-          {t('robstride_pos_vel_tip')}
-        </div>
-      )}
+      {isRobstridePosVel && <div className="tip">{t('robstride_pos_vel_tip')}</div>}
       <div className="field armSliderWrap">
         <label>
           {t('general_target_slider')}: {sliderTarget.toFixed(3)}
@@ -314,7 +406,8 @@ export function MotorDetailPanel({
         />
         <div className="armSliderMeta">
           <span>
-            {t('arm_pos_range_hint')}: {sliderBounds.min.toFixed(2)} .. {sliderBounds.max.toFixed(2)}
+            {t('arm_pos_range_hint')}: {sliderBounds.min.toFixed(2)} ..{' '}
+            {sliderBounds.max.toFixed(2)}
           </span>
           <input
             className="armPosInput"
@@ -358,7 +451,10 @@ export function MotorDetailPanel({
             <span className="tip">{t('advanced_ops_desc')}</span>
           </div>
           <div className="row toolbar compactToolbar">
-            <button disabled={!connected || opBusy} onClick={() => runOp(() => runMotorOp(activeMotor, 'clear_error'))}>
+            <button
+              disabled={!connected || opBusy}
+              onClick={() => runOp(() => runMotorOp(activeMotor, 'clear_error'))}
+            >
               {t('clear_error')}
             </button>
             <button
@@ -376,7 +472,11 @@ export function MotorDetailPanel({
           </div>
 
           <div className="grid3 denseGrid">
-            <Field label={t('ensure_mode')} value={ensureMode} onChange={(e) => setEnsureMode(e.target.value)} />
+            <Field
+              label={t('ensure_mode')}
+              value={ensureMode}
+              onChange={(e) => setEnsureMode(e.target.value)}
+            />
             <Field
               label={t('ensure_timeout_ms')}
               value={ensureTimeoutMs}
@@ -396,7 +496,7 @@ export function MotorDetailPanel({
                   runMotorOp(activeMotor, 'ensure_mode', {
                     mode: ensureMode,
                     timeout_ms: Number(ensureTimeoutMs) || 1000,
-                  }),
+                  })
                 )
               }
             >
@@ -408,7 +508,7 @@ export function MotorDetailPanel({
                 runOp(() =>
                   runMotorOp(activeMotor, 'set_can_timeout_ms', {
                     timeout_ms: Number(canTimeoutMs) || 800,
-                  }),
+                  })
                 )
               }
             >
@@ -471,7 +571,11 @@ export function MotorDetailPanel({
                     <option value="f32">f32</option>
                   </select>
                 </div>
-                <Field label={t('write_value')} value={regValue} onChange={(e) => setRegValue(e.target.value)} />
+                <Field
+                  label={t('write_value')}
+                  value={regValue}
+                  onChange={(e) => setRegValue(e.target.value)}
+                />
               </div>
               <div className="row toolbar compactToolbar">
                 <button
@@ -479,7 +583,10 @@ export function MotorDetailPanel({
                   onClick={() =>
                     runOp(async () => {
                       const op = regType === 'u32' ? 'get_register_u32' : 'get_register_f32';
-                      const ret = await runMotorOp(activeMotor, op, { rid: Number(rid) || 0, timeout_ms: 1000 });
+                      const ret = await runMotorOp(activeMotor, op, {
+                        rid: Number(rid) || 0,
+                        timeout_ms: 1000,
+                      });
                       setRegReadValue(String(getResponseValue(ret) ?? ''));
                     })
                   }
@@ -493,14 +600,19 @@ export function MotorDetailPanel({
                       const op = regType === 'u32' ? 'write_register_u32' : 'write_register_f32';
                       return runMotorOp(activeMotor, op, {
                         rid: Number(rid) || 0,
-                        value: regType === 'u32' ? Math.round(Number(regValue) || 0) : Number(regValue) || 0,
+                        value:
+                          regType === 'u32'
+                            ? Math.round(Number(regValue) || 0)
+                            : Number(regValue) || 0,
                       });
                     })
                   }
                 >
                   {t('write_reg')}
                 </button>
-                <span className="tip">{t('read_value')}: {regReadValue || '-'}</span>
+                <span className="tip">
+                  {t('read_value')}: {regReadValue || '-'}
+                </span>
               </div>
             </>
           )}
@@ -512,15 +624,21 @@ export function MotorDetailPanel({
                 <span className="tip">Catalog: {ROBSTRIDE_PARAM_CATALOG.length} params</span>
               </div>
               <div className="grid3 denseGrid">
-                <Field label="Search" value={rsSearch} onChange={(e) => setRsSearch(e.target.value)} />
+                <Field
+                  label="Search"
+                  value={rsSearch}
+                  onChange={(e) => setRsSearch(e.target.value)}
+                />
                 <div className="field">
                   <label>Access</label>
-                  <select value={rsAccessFilter} onChange={(e) => setRsAccessFilter(e.target.value)}>
+                  <select
+                    value={rsAccessFilter}
+                    onChange={(e) => setRsAccessFilter(e.target.value)}
+                  >
                     <option value="all">All</option>
                     <option value="rw">Read/Write</option>
-                    <option value="config">Config</option>
-                    <option value="setting">Setting</option>
                     <option value="ro">Read-Only</option>
+                    <option value="wo">Write-Only</option>
                   </select>
                 </div>
                 <div className="field">
@@ -551,12 +669,19 @@ export function MotorDetailPanel({
                     <span style={{ minWidth: 88 }}>{toHex(p.id)}</span>
                     <span style={{ minWidth: 220 }}>{p.name}</span>
                     <span style={{ minWidth: 80 }}>{p.dataType}</span>
-                    <span>{ROBSTRIDE_ACCESS_LABELS[p.access] || p.access}</span>
+                    <span style={{ minWidth: 86 }}>
+                      {ROBSTRIDE_ACCESS_LABELS[p.access] || p.access}
+                    </span>
+                    <span className="tip">{p.desc}</span>
                   </div>
                 ))}
               </div>
               <div className="grid3 denseGrid">
-                <Field label={t('param_id')} value={rsParamId} onChange={(e) => setRsParamId(e.target.value)} />
+                <Field
+                  label={t('param_id')}
+                  value={rsParamId}
+                  onChange={(e) => setRsParamId(e.target.value)}
+                />
                 <div className="field">
                   <label>{t('param_type')}</label>
                   <select value={rsParamType} onChange={(e) => setRsParamType(e.target.value)}>
@@ -567,11 +692,17 @@ export function MotorDetailPanel({
                     <option value="f32">f32</option>
                   </select>
                 </div>
-                <Field label={t('param_value')} value={rsParamValue} onChange={(e) => setRsParamValue(e.target.value)} />
+                <Field
+                  label={t('param_value')}
+                  value={rsParamValue}
+                  onChange={(e) => setRsParamValue(e.target.value)}
+                />
               </div>
               <div className="row toolbar compactToolbar">
                 <button
-                  disabled={!connected || opBusy || !selectedParamTypeSupported}
+                  disabled={
+                    !connected || opBusy || !selectedParamReadable || !selectedParamTypeSupported
+                  }
                   onClick={() =>
                     runOp(async () => {
                       const ret = await runMotorOp(activeMotor, 'robstride_read_param', {
@@ -586,7 +717,9 @@ export function MotorDetailPanel({
                   {t('read_param')}
                 </button>
                 <button
-                  disabled={!connected || opBusy || !selectedParamWritable || !selectedParamTypeSupported}
+                  disabled={
+                    !connected || opBusy || !selectedParamWritable || !selectedParamTypeSupported
+                  }
                   onClick={() =>
                     runOp(async () => {
                       await runMotorOp(activeMotor, 'robstride_write_param', {
@@ -595,27 +728,45 @@ export function MotorDetailPanel({
                         value: rsParamValue,
                         timeout_ms: 200,
                       });
-                      const verifyRead = await runMotorOp(activeMotor, 'robstride_read_param', {
-                        param_id: rsParamId,
-                        type: rsParamType,
-                        timeout_ms: 200,
-                      });
-                      setRsReadValue(String(getResponseValue(verifyRead) ?? ''));
+                      if (selectedParamReadable) {
+                        const verifyRead = await runMotorOp(activeMotor, 'robstride_read_param', {
+                          param_id: rsParamId,
+                          type: rsParamType,
+                          timeout_ms: 200,
+                        });
+                        setRsReadValue(String(getResponseValue(verifyRead) ?? ''));
+                      } else {
+                        setRsReadValue('write sent; parameter is write-only');
+                      }
                     })
                   }
                 >
                   {t('write_param')}
                 </button>
-                <span className="tip">{t('read_value')}: {rsReadValue || '-'}</span>
+                <span className="tip">
+                  {t('read_value')}: {rsReadValue || '-'}
+                </span>
               </div>
               {!selectedParamTypeSupported && (
-                <div className="tip">Current catalog type is not directly supported by unified read/write API. Please use vendor-specific tooling.</div>
+                <div className="tip">
+                  Current catalog type is not directly supported by unified read/write API. Please
+                  use vendor-specific tooling.
+                </div>
               )}
               {!selectedParamWritable && (
-                <div className="tip">This parameter is marked Read-Only in catalog; write is disabled.</div>
+                <div className="tip">
+                  This parameter is marked Read-Only in catalog; write is disabled.
+                </div>
               )}
-              {selectedRobstrideParam?.id === 0x200A && (
-                <div className="tip">CAN_ID (0x200A): prefer using the dedicated &quot;Set ID&quot; button for reliable ID change workflow.</div>
+              {!selectedParamReadable && (
+                <div className="tip">
+                  This parameter is marked Write-Only in catalog; readback/verify is skipped.
+                </div>
+              )}
+              {selectedRobstrideParam?.id === 0x7029 && (
+                <div className="tip">
+                  zero_sta (0x7029): after writing, use Store Parameters if you need it to persist.
+                </div>
               )}
             </>
           )}
@@ -625,7 +776,9 @@ export function MotorDetailPanel({
               <div className="sectionTitle">
                 <h2>{t('extra_snapshot_fields')}</h2>
               </div>
-              <pre className="box logs">{JSON.stringify(Object.fromEntries(extraEntries), null, 2)}</pre>
+              <pre className="box logs">
+                {JSON.stringify(Object.fromEntries(extraEntries), null, 2)}
+              </pre>
             </>
           )}
 
@@ -637,9 +790,19 @@ export function MotorDetailPanel({
       )}
 
       <div className="row toolbar">
-        <button disabled={!connected} onClick={() => controlMotor(activeMotor, 'enable')}>{t('enable')}</button>
-        <button disabled={!connected} onClick={() => controlMotor(activeMotor, 'disable')}>{t('disable')}</button>
-        <button className="primary" disabled={!connected} onClick={() => controlMotor(activeMotor, 'move')}>{t('move')}</button>
+        <button disabled={!connected} onClick={() => controlMotor(activeMotor, 'enable')}>
+          {t('enable')}
+        </button>
+        <button disabled={!connected} onClick={() => controlMotor(activeMotor, 'disable')}>
+          {t('disable')}
+        </button>
+        <button
+          className="primary"
+          disabled={!connected}
+          onClick={() => controlMotor(activeMotor, 'move')}
+        >
+          {t('move')}
+        </button>
         <button
           disabled={!connected}
           onClick={() => zeroMotor(activeMotor)}
@@ -647,13 +810,28 @@ export function MotorDetailPanel({
         >
           {t('zero_set')}
         </button>
-        <button disabled={!connected} onClick={() => controlMotor(activeMotor, 'stop')}>{t('stop')}</button>
-        <button disabled={!connected} onClick={() => probeMotor(activeMotor)}>{t('probe')}</button>
-        <button disabled={!connected || !SET_ID_VENDORS.has(activeMotor.vendor)} onClick={() => setIdFor(activeMotor)}>{t('set_id')}</button>
-        <button disabled={!connected} onClick={() => verifyHit(activeMotor)}>{t('verify')}</button>
-        <button disabled={!connected} onClick={() => refreshMotorState(activeMotor)}>{t('refresh_state')}</button>
+        <button disabled={!connected} onClick={() => controlMotor(activeMotor, 'stop')}>
+          {t('stop')}
+        </button>
+        <button disabled={!connected} onClick={() => probeMotor(activeMotor)}>
+          {t('probe')}
+        </button>
+        <button
+          disabled={!connected || !SET_ID_VENDORS.has(activeMotor.vendor)}
+          onClick={() => setIdFor(activeMotor)}
+        >
+          {t('set_id')}
+        </button>
+        <button disabled={!connected} onClick={() => verifyHit(activeMotor)}>
+          {t('verify')}
+        </button>
+        <button disabled={!connected} onClick={() => refreshMotorState(activeMotor)}>
+          {t('refresh_state')}
+        </button>
       </div>
-      {connected && !activeControl.enabled && <div className="tip">{t('zero_requires_enable')}</div>}
+      {connected && !activeControl.enabled && (
+        <div className="tip">{t('zero_requires_enable')}</div>
+      )}
       {!connected && <div className="tip">{t('connect_ws_first')}</div>}
     </>
   );
