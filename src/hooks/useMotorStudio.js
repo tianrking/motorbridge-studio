@@ -22,8 +22,6 @@ function streamFrameMatchesHit(data, hit) {
   return Number(hit.esc_id) === motorId && Number(hit.mst_id) === feedbackId;
 }
 
-const TELEMETRY_SAMPLE_LIMIT = 300;
-
 function preserveParamStreamFields(hit, next) {
   if (!hit?.param_stream_values) return next;
   const preservedKeys =
@@ -37,33 +35,6 @@ function preserveParamStreamFields(hit, next) {
     if (hit[key] !== undefined) preserved[key] = hit[key];
   });
   return { ...next, ...preserved, param_stream_values: hit.param_stream_values };
-}
-
-function appendTelemetrySample(hit, control) {
-  const pos = Number(hit?.pos);
-  const vel = Number(hit?.vel);
-  const torq = Number(hit?.torq);
-  const target = Number(control?.target);
-  if (
-    !Number.isFinite(pos) &&
-    !Number.isFinite(vel) &&
-    !Number.isFinite(torq) &&
-    !Number.isFinite(target)
-  ) {
-    return hit;
-  }
-  const sample = {
-    t: Date.now(),
-    pos: Number.isFinite(pos) ? pos : null,
-    vel: Number.isFinite(vel) ? vel : null,
-    torq: Number.isFinite(torq) ? torq : null,
-    target: Number.isFinite(target) ? target : null,
-  };
-  const samples = [...(Array.isArray(hit.telemetry_samples) ? hit.telemetry_samples : []), sample];
-  return {
-    ...hit,
-    telemetry_samples: samples.slice(-TELEMETRY_SAMPLE_LIMIT),
-  };
 }
 
 export function useMotorStudio() {
@@ -100,15 +71,12 @@ export function useMotorStudio() {
         if (index < 0) return prev;
         const current = prev[index];
         if (state?.vendor && String(state.vendor) !== String(current.vendor)) return prev;
-        const key = motorKey(current);
-        const control = controls[key];
         const next = [...prev];
-        const mapped = preserveParamStreamFields(current, mapResponseToHit(current, state));
-        next[index] = appendTelemetrySample(mapped, control);
+        next[index] = preserveParamStreamFields(current, mapResponseToHit(current, state));
         return next;
       });
     },
-    [activeMotorKey, controls, setHits]
+    [activeMotorKey, setHits]
   );
 
   const handleGatewayParams = useCallback(
