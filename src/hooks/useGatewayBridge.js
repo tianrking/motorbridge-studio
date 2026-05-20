@@ -232,11 +232,11 @@ export function useGatewayBridge({
     }
     if (String(vendor) === 'robstride' || String(vendor) === 'damiao') {
       try {
-        await sendCmd(
-          'param_stream',
-          { enabled: true, profile: 'realtime', interval_ms: 500, timeout_ms: 80 },
-          3000
-        );
+        const paramStreamConfig =
+          String(vendor) === 'robstride'
+            ? { enabled: true, profile: 'realtime', interval_ms: 100, timeout_ms: 80 }
+            : { enabled: true, profile: 'realtime', interval_ms: 500, timeout_ms: 80 };
+        await sendCmd('param_stream', paramStreamConfig, 3000);
       } catch (e) {
         pushLog(`param stream enable failed: ${e.message || e}`, 'err');
       }

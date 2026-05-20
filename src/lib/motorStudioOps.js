@@ -75,11 +75,17 @@ export function mapParamStreamToHit(h, data) {
   };
 
   if (vendor === 'robstride') {
+    const pos = numberFrom('mechPos', 'mechPos_fdb');
+    const vel = numberFrom('mechVel', 'mechVel_fdb');
     const iqf = numberFrom('iqf');
+    const torque = numberFrom('torque_fdb');
     const vbus = numberFrom('VBUS', 'v_bus');
     const temp = numberFrom('drv_temp');
     const runMode = numberFrom('run_mode');
+    if (Number.isFinite(pos)) patch.pos = pos;
+    if (Number.isFinite(vel)) patch.vel = vel;
     if (Number.isFinite(iqf)) patch.iqf = iqf;
+    if (Number.isFinite(torque)) patch.torq = torque;
     if (Number.isFinite(vbus)) patch.vbus = vbus;
     if (Number.isFinite(temp)) patch.t_mos = temp;
     if (Number.isFinite(runMode)) {
@@ -112,6 +118,7 @@ export function mapParamStreamToHit(h, data) {
     ...h,
     ...patch,
     param_stream_values: values,
+    feedback_source: vendor === 'robstride' ? 'robstride_observation_params' : h?.feedback_source,
     online: true,
     last_check_ms: Date.now(),
     updated_at_ms: Date.now(),

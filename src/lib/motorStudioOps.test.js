@@ -30,7 +30,7 @@ describe('motor studio ops', () => {
     expect(next.tmax).toBe(17);
   });
 
-  it('maps RobStride param stream values into diagnostic fields without overriding feedback', () => {
+  it('maps RobStride observation params into live feedback fields', () => {
     const next = mapParamStreamToHit(
       { vendor: 'robstride', pos: 0, vel: 0, torq: 0 },
       {
@@ -47,13 +47,14 @@ describe('motor studio ops', () => {
       }
     );
 
-    expect(next.pos).toBe(0);
-    expect(next.vel).toBe(0);
+    expect(next.pos).toBeCloseTo(-0.82);
+    expect(next.vel).toBeCloseTo(0.25);
     expect(next.iqf).toBeCloseTo(0.31);
-    expect(next.torq).toBe(0);
+    expect(next.torq).toBeCloseTo(0.08);
     expect(next.vbus).toBeCloseTo(24.1);
     expect(next.t_mos).toBeCloseTo(36);
     expect(next.status_name).toBe('Position');
+    expect(next.feedback_source).toBe('robstride_observation_params');
   });
 
   it('maps Damiao param stream values into diagnostic fields without overriding feedback', () => {
