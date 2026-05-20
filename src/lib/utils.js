@@ -118,13 +118,15 @@ export function formatLocal(ms) {
 }
 
 export function scanSummary(h) {
-  if (h.vendor !== 'damiao') return `${toHex(h.esc_id)} / ${toHex(h.mst_id)}`;
-  if (h.detected_by === 'registers') {
-    return `reg p=${Number.isFinite(h.pmax) ? h.pmax.toFixed(2) : '-'} v=${Number.isFinite(h.vmax) ? h.vmax.toFixed(2) : '-'} t=${Number.isFinite(h.tmax) ? h.tmax.toFixed(2) : '-'}`;
-  }
-  if (h.detected_by === 'feedback') {
+  const hasTelemetry =
+    Number.isFinite(h.pos) || Number.isFinite(h.vel) || Number.isFinite(h.torq);
+  if (hasTelemetry) {
     return `fb pos=${Number.isFinite(h.pos) ? h.pos.toFixed(2) : '-'} vel=${Number.isFinite(h.vel) ? h.vel.toFixed(2) : '-'} torq=${Number.isFinite(h.torq) ? h.torq.toFixed(2) : '-'}`;
   }
+  if (h.vendor === 'damiao' && h.detected_by === 'registers') {
+    return `reg p=${Number.isFinite(h.pmax) ? h.pmax.toFixed(2) : '-'} v=${Number.isFinite(h.vmax) ? h.vmax.toFixed(2) : '-'} t=${Number.isFinite(h.tmax) ? h.tmax.toFixed(2) : '-'}`;
+  }
+  if (h.vendor !== 'damiao') return `${toHex(h.esc_id)} / ${toHex(h.mst_id)}`;
   return '-';
 }
 

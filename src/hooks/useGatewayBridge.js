@@ -3,7 +3,14 @@ import { WsGatewayClient } from '../wsGatewayClient';
 import { useI18n } from '../i18n';
 import { normalizeGatewayCapabilities, WS_V1_FALLBACK_CAPABILITIES } from '../lib/wsCapabilities';
 
-export function useGatewayBridge({ wsUrl, channel, pushLog, setStateSnapshot, onGatewayState }) {
+export function useGatewayBridge({
+  wsUrl,
+  channel,
+  pushLog,
+  setStateSnapshot,
+  onGatewayState,
+  onGatewayParams,
+}) {
   const { t } = useI18n();
   const [connText, setConnText] = useState(t('conn_disconnected'));
   const [connected, setConnected] = useState(false);
@@ -16,6 +23,10 @@ export function useGatewayBridge({ wsUrl, channel, pushLog, setStateSnapshot, on
   const reconnectAttemptRef = useRef(0);
   const shouldAutoReconnectRef = useRef(false);
   const connectingRef = useRef(false);
+  const onGatewayStateRef = useRef(onGatewayState);
+  const onGatewayParamsRef = useRef(onGatewayParams);
+  onGatewayStateRef.current = onGatewayState;
+  onGatewayParamsRef.current = onGatewayParams;
 
   const clearReconnectTimer = () => {
     if (reconnectTimerRef.current) {
@@ -59,7 +70,11 @@ export function useGatewayBridge({ wsUrl, channel, pushLog, setStateSnapshot, on
         },
         onState: (st) => {
           setStateSnapshot(JSON.stringify(st, null, 2));
-          onGatewayState?.(st);
+          onGatewayStateRef.current?.(st);
+        },
+        onParams: (data) => {
+          setStateSnapshot(JSON.stringify(data, null, 2));
+          onGatewayParamsRef.current?.(data);
         },
         onMessage: (msg) => {
           if (msg?.type === 'event' && msg?.event === 'connected' && msg?.data) {
@@ -214,6 +229,17 @@ export function useGatewayBridge({ wsUrl, channel, pushLog, setStateSnapshot, on
       await sendCmd('state_stream', { enabled: true }, 3000);
     } catch (e) {
       pushLog(`state stream enable failed: ${e.message || e}`, 'err');
+    }
+    if (String(vendor) === 'robstride' || String(vendor) === 'damiao') {
+      try {
+        await sendCmd(
+          'param_stream',
+          { enabled: true, profile: 'realtime', interval_ms: 500, timeout_ms: 80 },
+          3000
+        );
+      } catch (e) {
+        pushLog(`param stream enable failed: ${e.message || e}`, 'err');
+      }
     }
   };
 

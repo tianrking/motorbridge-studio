@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapResponseToHit } from './motorStudioOps';
+import { mapParamStreamToHit, mapResponseToHit } from './motorStudioOps';
 
 describe('motor studio ops', () => {
   it('unwraps gateway state_once payloads before merging RobStride telemetry', () => {
@@ -28,5 +28,60 @@ describe('motor studio ops', () => {
     expect(next.pmax).toBeCloseTo(4 * Math.PI);
     expect(next.vmax).toBe(50);
     expect(next.tmax).toBe(17);
+  });
+
+  it('maps RobStride param stream values into diagnostic fields without overriding feedback', () => {
+    const next = mapParamStreamToHit(
+      { vendor: 'robstride', pos: 0, vel: 0, torq: 0 },
+      {
+        vendor: 'robstride',
+        values: {
+          run_mode: 1,
+          mechPos: -0.82,
+          mechVel: 0.25,
+          iqf: 0.31,
+          VBUS: 24.1,
+          torque_fdb: 0.08,
+          drv_temp: 36,
+        },
+      }
+    );
+
+    expect(next.pos).toBe(0);
+    expect(next.vel).toBe(0);
+    expect(next.iqf).toBeCloseTo(0.31);
+    expect(next.torq).toBe(0);
+    expect(next.vbus).toBeCloseTo(24.1);
+    expect(next.t_mos).toBeCloseTo(36);
+    expect(next.status_name).toBe('Position');
+  });
+
+  it('maps Damiao param stream values into diagnostic fields without overriding feedback', () => {
+    const next = mapParamStreamToHit(
+      { vendor: 'damiao', pos: 0 },
+      {
+        vendor: 'damiao',
+        values: {
+          CTRL_MODE: 2,
+          VBus: 24.2,
+          Tpcb: 35,
+          Tmtr: 32,
+          p_m: 0.5,
+          xout: 0.45,
+          PMAX: 12.5,
+          VMAX: 50,
+          TMAX: 17,
+        },
+      }
+    );
+
+    expect(next.pos).toBe(0);
+    expect(next.motor_pos).toBeCloseTo(0.5);
+    expect(next.output_pos).toBeCloseTo(0.45);
+    expect(next.vbus).toBeCloseTo(24.2);
+    expect(next.t_mos).toBeCloseTo(35);
+    expect(next.t_rotor).toBeCloseTo(32);
+    expect(next.status).toBe(2);
+    expect(next.pmax).toBeCloseTo(12.5);
   });
 });

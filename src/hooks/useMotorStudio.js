@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getResponseValue, motorKey, normalizeControlForHit, ts } from '../lib/utils';
-import { mapResponseToHit } from '../lib/motorStudioOps';
+import { motorKey, normalizeControlForHit, ts } from '../lib/utils';
+import { mapParamStreamToHit, mapResponseToHit } from '../lib/motorStudioOps';
 import { usePersistedState } from './usePersistedState';
 import { useI18n } from '../i18n';
 import { useConnectionState } from './useConnectionState';
@@ -12,6 +12,59 @@ import { useRobotArmOps } from './useRobotArmOps';
 const LS_HITS_KEY = 'motorbridge_studio_hits_v1';
 const LS_CONTROLS_KEY = 'motorbridge_studio_controls_v1';
 const LS_ACTIVE_MOTOR_KEY = 'motorbridge_studio_active_motor_v1';
+
+function streamFrameMatchesHit(data, hit) {
+  if (!data || !hit) return false;
+  if (data.vendor && String(data.vendor) !== String(hit.vendor)) return false;
+  const motorId = Number(data.motor_id);
+  const feedbackId = Number(data.feedback_id);
+  if (!Number.isFinite(motorId) || !Number.isFinite(feedbackId)) return false;
+  return Number(hit.esc_id) === motorId && Number(hit.mst_id) === feedbackId;
+}
+
+const TELEMETRY_SAMPLE_LIMIT = 300;
+
+function preserveParamStreamFields(hit, next) {
+  if (!hit?.param_stream_values) return next;
+  const preservedKeys =
+    String(hit.vendor) === 'robstride'
+      ? ['iqf', 'vbus', 'status', 'status_name']
+      : String(hit.vendor) === 'damiao'
+        ? ['motor_pos', 'output_pos', 'vbus', 'status', 'pmax', 'vmax', 'tmax']
+        : [];
+  const preserved = {};
+  preservedKeys.forEach((key) => {
+    if (hit[key] !== undefined) preserved[key] = hit[key];
+  });
+  return { ...next, ...preserved, param_stream_values: hit.param_stream_values };
+}
+
+function appendTelemetrySample(hit, control) {
+  const pos = Number(hit?.pos);
+  const vel = Number(hit?.vel);
+  const torq = Number(hit?.torq);
+  const target = Number(control?.target);
+  if (
+    !Number.isFinite(pos) &&
+    !Number.isFinite(vel) &&
+    !Number.isFinite(torq) &&
+    !Number.isFinite(target)
+  ) {
+    return hit;
+  }
+  const sample = {
+    t: Date.now(),
+    pos: Number.isFinite(pos) ? pos : null,
+    vel: Number.isFinite(vel) ? vel : null,
+    torq: Number.isFinite(torq) ? torq : null,
+    target: Number.isFinite(target) ? target : null,
+  };
+  const samples = [...(Array.isArray(hit.telemetry_samples) ? hit.telemetry_samples : []), sample];
+  return {
+    ...hit,
+    telemetry_samples: samples.slice(-TELEMETRY_SAMPLE_LIMIT),
+  };
+}
 
 export function useMotorStudio() {
   const { t } = useI18n();
@@ -33,8 +86,6 @@ export function useMotorStudio() {
   const [stateSnapshot, setStateSnapshot] = useState('(no state yet)');
   const [logs, setLogs] = useState([]);
   const telemetryTargetRef = useRef('');
-  const telemetryPollBusyRef = useRef(false);
-  const sendCmdRef = useRef(null);
   const setTargetForRef = useRef(null);
 
   const pushLog = (msg, level = 'info') => {
@@ -49,8 +100,29 @@ export function useMotorStudio() {
         if (index < 0) return prev;
         const current = prev[index];
         if (state?.vendor && String(state.vendor) !== String(current.vendor)) return prev;
+        const key = motorKey(current);
+        const control = controls[key];
         const next = [...prev];
-        next[index] = mapResponseToHit(current, state);
+        const mapped = preserveParamStreamFields(current, mapResponseToHit(current, state));
+        next[index] = appendTelemetrySample(mapped, control);
+        return next;
+      });
+    },
+    [activeMotorKey, controls, setHits]
+  );
+
+  const handleGatewayParams = useCallback(
+    (data) => {
+      setHits((prev) => {
+        let index = prev.findIndex((h) => streamFrameMatchesHit(data, h));
+        if (index < 0 && activeMotorKey) {
+          index = prev.findIndex((h) => motorKey(h) === activeMotorKey);
+        }
+        if (index < 0) return prev;
+        const current = prev[index];
+        if (data?.vendor && String(data.vendor) !== String(current.vendor)) return prev;
+        const next = [...prev];
+        next[index] = mapParamStreamToHit(current, data);
         return next;
       });
     },
@@ -61,11 +133,11 @@ export function useMotorStudio() {
     pushLog,
     setStateSnapshot,
     onGatewayState: handleGatewayState,
+    onGatewayParams: handleGatewayParams,
   });
   useEffect(() => {
-    sendCmdRef.current = connectionState.sendCmd;
     setTargetForRef.current = connectionState.setTargetFor;
-  }, [connectionState.sendCmd, connectionState.setTargetFor]);
+  }, [connectionState.setTargetFor]);
   const preferences = usePreferences();
 
   const scanState = useScanState({
@@ -174,68 +246,6 @@ export function useMotorStudio() {
     activeTelemetryVendor,
     connectionState.connected,
   ]);
-
-  useEffect(() => {
-    if (
-      !connectionState.connected ||
-      !activeTelemetryKey ||
-      activeTelemetryVendor !== 'robstride'
-    ) {
-      telemetryPollBusyRef.current = false;
-      return undefined;
-    }
-    const readNumber = async (paramId, type) => {
-      const ret = await sendCmdRef.current?.(
-        'robstride_read_param',
-        { param_id: paramId, type, timeout_ms: 180 },
-        600
-      );
-      if (!ret?.ok) return Number.NaN;
-      return Number(getResponseValue(ret));
-    };
-    const poll = async () => {
-      if (telemetryPollBusyRef.current) return;
-      telemetryPollBusyRef.current = true;
-      try {
-        const [pos, vel, iqf, vbus, runMode] = await Promise.all([
-          readNumber(0x7019, 'f32'),
-          readNumber(0x701b, 'f32'),
-          readNumber(0x701a, 'f32'),
-          readNumber(0x701c, 'f32'),
-          readNumber(0x7005, 'i8'),
-        ]);
-        setHits((prev) => {
-          const index = prev.findIndex((h) => motorKey(h) === activeTelemetryKey);
-          if (index < 0) return prev;
-          const current = prev[index];
-          const patch = { online: true, last_check_ms: Date.now(), updated_at_ms: Date.now() };
-          if (Number.isFinite(pos)) patch.pos = pos;
-          if (Number.isFinite(vel)) patch.vel = vel;
-          if (Number.isFinite(iqf)) patch.iqf = iqf;
-          if (Number.isFinite(vbus)) patch.vbus = vbus;
-          if (Number.isFinite(runMode)) {
-            const names = { 0: 'MIT', 1: 'Position', 2: 'Velocity', 3: 'Current', 5: 'CSP' };
-            patch.status = runMode;
-            patch.status_name = names[runMode] || `run_mode=${runMode}`;
-          }
-          const next = [...prev];
-          next[index] = { ...current, ...patch };
-          return next;
-        });
-      } catch {
-        // Keep passive telemetry quiet; explicit refresh/control operations still log failures.
-      } finally {
-        telemetryPollBusyRef.current = false;
-      }
-    };
-    const initialTimer = window.setTimeout(poll, 200);
-    const interval = window.setInterval(poll, 1000);
-    return () => {
-      window.clearTimeout(initialTimer);
-      window.clearInterval(interval);
-      telemetryPollBusyRef.current = false;
-    };
-  }, [activeTelemetryKey, activeTelemetryVendor, connectionState.connected, setHits]);
 
   const clearLogs = () => setLogs([]);
   const clearOfflineMotors = useCallback(

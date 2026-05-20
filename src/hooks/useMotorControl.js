@@ -124,7 +124,6 @@ export function useMotorControl({
       sendCmd,
       setHits,
       setControls,
-      closeBusQuietly,
       pushLog,
     });
   };
@@ -157,7 +156,6 @@ export function useMotorControl({
       setTargetFor,
       sendCmd,
       setHits,
-      closeBusQuietly,
       pushLog,
     });
 

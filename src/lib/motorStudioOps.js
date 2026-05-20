@@ -62,6 +62,62 @@ export function mapResponseToHit(h, data, extra = {}) {
   };
 }
 
+export function mapParamStreamToHit(h, data) {
+  const values = data?.values && typeof data.values === 'object' ? data.values : {};
+  const vendor = String(data?.vendor || h?.vendor || '');
+  const patch = {};
+  const numberFrom = (...keys) => {
+    for (const key of keys) {
+      const value = Number(values[key]);
+      if (Number.isFinite(value)) return value;
+    }
+    return Number.NaN;
+  };
+
+  if (vendor === 'robstride') {
+    const iqf = numberFrom('iqf');
+    const vbus = numberFrom('VBUS', 'v_bus');
+    const temp = numberFrom('drv_temp');
+    const runMode = numberFrom('run_mode');
+    if (Number.isFinite(iqf)) patch.iqf = iqf;
+    if (Number.isFinite(vbus)) patch.vbus = vbus;
+    if (Number.isFinite(temp)) patch.t_mos = temp;
+    if (Number.isFinite(runMode)) {
+      const names = { 0: 'MIT', 1: 'Position', 2: 'Velocity', 3: 'Current', 5: 'CSP' };
+      patch.status = runMode;
+      patch.status_name = names[runMode] || `run_mode=${runMode}`;
+    }
+  } else if (vendor === 'damiao') {
+    const pMotor = numberFrom('p_m');
+    const xout = numberFrom('xout');
+    const vbus = numberFrom('VBus');
+    const tPcb = numberFrom('Tpcb');
+    const tMotor = numberFrom('Tmtr');
+    const mode = numberFrom('CTRL_MODE');
+    const pmax = numberFrom('PMAX');
+    const vmax = numberFrom('VMAX');
+    const tmax = numberFrom('TMAX');
+    if (Number.isFinite(pMotor)) patch.motor_pos = pMotor;
+    if (Number.isFinite(xout)) patch.output_pos = xout;
+    if (Number.isFinite(vbus)) patch.vbus = vbus;
+    if (Number.isFinite(tPcb)) patch.t_mos = tPcb;
+    if (Number.isFinite(tMotor)) patch.t_rotor = tMotor;
+    if (Number.isFinite(mode)) patch.status = mode;
+    if (Number.isFinite(pmax)) patch.pmax = pmax;
+    if (Number.isFinite(vmax)) patch.vmax = vmax;
+    if (Number.isFinite(tmax)) patch.tmax = tmax;
+  }
+
+  return {
+    ...h,
+    ...patch,
+    param_stream_values: values,
+    online: true,
+    last_check_ms: Date.now(),
+    updated_at_ms: Date.now(),
+  };
+}
+
 async function readRobstrideStateParams(sendCmd) {
   const specs = [
     ['pos', 0x7019, 'f32'],
@@ -268,7 +324,6 @@ export async function controlMotorOp({
   sendCmd,
   setHits,
   setControls,
-  closeBusQuietly,
   pushLog,
 }) {
   const c = { ...(controls[motorKey(h)] || defaultControlsForHit(h)), ...(controlOverride || {}) };
@@ -293,7 +348,6 @@ export async function controlMotorOp({
       if (action === 'clear_error') {
         pushLog(`hint: re-enable ${h.vendor} ${toHex(h.esc_id)} after clear_error`, 'info');
       }
-      await closeBusQuietly();
       return true;
     }
 
@@ -351,7 +405,6 @@ export async function controlMotorOp({
       pushLog(`move ${h.vendor} ${toHex(h.esc_id)} mode=${c.mode} target=${target.toFixed(3)} ok`, 'ok');
     }
     setHits((prev) => mergeHitsByVendor(prev, [{ ...h, updated_at_ms: Date.now() }]));
-    await closeBusQuietly();
     return true;
   } catch (e) {
     pushLog(`control ${action} error: ${e.message || e}`, 'err');
@@ -366,7 +419,6 @@ export async function zeroMotorOp({
   setTargetFor,
   sendCmd,
   setHits,
-  closeBusQuietly,
   pushLog,
 }) {
   const c = controls[motorKey(h)] || defaultControlsForHit(h);
@@ -424,7 +476,6 @@ export async function zeroMotorOp({
     }
 
     setHits((prev) => mergeHitsByVendor(prev, [nextHit]));
-    await closeBusQuietly();
     return true;
   } catch (e) {
     pushLog(`zero error: ${e.message || e}`, 'err');

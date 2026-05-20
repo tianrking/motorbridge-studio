@@ -49,6 +49,75 @@ function MetaItem({ label, value }) {
   );
 }
 
+function finiteSeries(samples, key) {
+  return samples
+    .map((sample, index) => ({ index, value: Number(sample[key]) }))
+    .filter((point) => Number.isFinite(point.value));
+}
+
+function telemetryPath(points, sampleCount, min, max, width, height) {
+  if (points.length < 2 || sampleCount < 2 || min === max) return '';
+  const scaleY = (value) => height - ((value - min) / (max - min)) * height;
+  return points
+    .map((point, idx) => {
+      const x = (point.index / Math.max(1, sampleCount - 1)) * width;
+      const y = scaleY(point.value);
+      return `${idx === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(' ');
+}
+
+function TelemetryCurve({ samples, t }) {
+  const cleanSamples = Array.isArray(samples) ? samples.slice(-180) : [];
+  const series = [
+    { key: 'target', label: t('target'), color: '#f59e0b' },
+    { key: 'pos', label: t('pos'), color: '#22c55e' },
+    { key: 'vel', label: t('vel'), color: '#38bdf8' },
+    { key: 'torq', label: t('torq'), color: '#f43f5e' },
+  ].map((item) => ({ ...item, points: finiteSeries(cleanSamples, item.key) }));
+  const values = series.flatMap((item) => item.points.map((point) => point.value));
+  const hasData = cleanSamples.length > 1 && values.length > 1;
+  const minRaw = hasData ? Math.min(...values) : -1;
+  const maxRaw = hasData ? Math.max(...values) : 1;
+  const pad = Math.max(0.05, (maxRaw - minRaw) * 0.12);
+  const min = minRaw - pad;
+  const max = maxRaw + pad;
+  const width = 640;
+  const height = 170;
+
+  return (
+    <div className="telemetryCurvePanel">
+      <div className="sectionTitle compactSectionTitle">
+        <h2>{t('section_state')}</h2>
+        <span>{cleanSamples.length ? `${cleanSamples.length} samples` : 'state_stream'}</span>
+      </div>
+      <svg
+        className="telemetryCurve"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="Realtime motor feedback curve"
+      >
+        <line x1="0" y1={height / 2} x2={width} y2={height / 2} className="curveAxis" />
+        {series.map((item) => (
+          <path
+            key={item.key}
+            d={telemetryPath(item.points, cleanSamples.length, min, max, width, height)}
+            style={{ stroke: item.color }}
+          />
+        ))}
+      </svg>
+      <div className="curveLegend">
+        {series.map((item) => (
+          <span key={item.key}>
+            <i style={{ background: item.color }} />
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function positionSliderBounds() {
   return { min: -3.14, max: 3.14 };
 }
@@ -344,6 +413,8 @@ export function MotorDetailPanel({
           value={Number.isFinite(activeMotor.tmax) ? activeMotor.tmax.toFixed(2) : '-'}
         />
       </div>
+
+      <TelemetryCurve samples={activeMotor.telemetry_samples} t={t} />
 
       <div className="grid3 denseGrid">
         <div className="field">

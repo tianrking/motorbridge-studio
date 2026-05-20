@@ -1,10 +1,11 @@
 export class WsGatewayClient {
-  constructor({ onEvent, onState, onOpen, onClose, onError, onMessage }) {
+  constructor({ onEvent, onState, onParams, onOpen, onClose, onError, onMessage }) {
     this.ws = null;
     this.pendingByReqId = new Map();
     this.nextReqId = 1;
     this.onEvent = onEvent;
     this.onState = onState;
+    this.onParams = onParams;
     this.onOpen = onOpen;
     this.onClose = onClose;
     this.onError = onError;
@@ -55,6 +56,11 @@ export class WsGatewayClient {
 
       if (msg?.type === 'state') {
         this.onState?.(msg.data);
+        return;
+      }
+
+      if (msg?.type === 'robstride_params' || msg?.type === 'damiao_params') {
+        this.onParams?.(msg.data);
         return;
       }
 
