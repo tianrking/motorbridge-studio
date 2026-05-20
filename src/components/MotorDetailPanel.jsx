@@ -7,27 +7,19 @@ import {
   toRobstrideCliType,
 } from '../lib/robstrideParamCatalog';
 import { SET_ID_VENDORS, VENDOR_LABELS } from '../lib/constants';
+import { modesForVendor } from '../lib/wsCapabilities';
 import { controlInputValue, formatLocal, getResponseValue, motorKey, parseNum, toHex } from '../lib/utils';
 import { useI18n } from '../i18n';
+import { useConnectionContext, usePreferencesContext } from '../hooks/useMotorStudioContext';
 
-function ModeSelect({ vendor, value, onChange }) {
+function ModeSelect({ modes, value, onChange }) {
   return (
     <select value={value} onChange={onChange}>
-      {vendor === 'damiao' && (
-        <>
-          <option value="pos_vel">pos_vel</option>
-          <option value="mit">mit</option>
-          <option value="vel">vel</option>
-          <option value="force_pos">force_pos</option>
-        </>
-      )}
-      {vendor === 'robstride' && (
-        <>
-          <option value="mit">mit</option>
-          <option value="vel">vel</option>
-        </>
-      )}
-      {!['damiao', 'robstride'].includes(vendor) && <option value="vel">vel</option>}
+      {modes.map((mode) => (
+        <option key={mode} value={mode}>
+          {mode}
+        </option>
+      ))}
     </select>
   );
 }
@@ -45,6 +37,12 @@ function MetaItem({ label, value }) {
   return <div className="metaItem"><b>{label}</b> {value}</div>;
 }
 
+function positionSliderBounds(activeMotor) {
+  const pmax = Number(activeMotor?.pmax);
+  const abs = Number.isFinite(pmax) && pmax > 0 ? Math.min(Math.max(pmax, 0.1), 20) : 3.14;
+  return { min: -abs, max: abs };
+}
+
 export function MotorDetailPanel({
   connected,
   activeMotor,
@@ -59,6 +57,8 @@ export function MotorDetailPanel({
   runMotorOp,
 }) {
   const { t } = useI18n();
+  const { gatewayCapabilities } = useConnectionContext();
+  const { uiPrefs, setUiPref } = usePreferencesContext();
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [ensureMode, setEnsureMode] = React.useState('mit');
   const [ensureTimeoutMs, setEnsureTimeoutMs] = React.useState('1000');
@@ -77,8 +77,20 @@ export function MotorDetailPanel({
   const [advancedRiskAccepted, setAdvancedRiskAccepted] = React.useState(false);
   const [advancedRiskDialogOpen, setAdvancedRiskDialogOpen] = React.useState(false);
   const [opBusy, setOpBusy] = React.useState(false);
+  const liveMoveTimerRef = React.useRef(null);
+  const pendingLiveMoveRef = React.useRef(null);
+  const liveMoveSeqRef = React.useRef(0);
 
   const vendor = String(activeMotor?.vendor || '').toLowerCase();
+  const modeOptions = modesForVendor(gatewayCapabilities, vendor);
+  const isRobstridePosVel = vendor === 'robstride' && activeControl?.mode === 'pos_vel';
+  const positionSliderEnabled = activeControl?.mode === 'pos_vel' || activeControl?.mode === 'force_pos';
+  const liveSliderEnabled = Boolean(uiPrefs?.generalSliderLiveMove) && positionSliderEnabled && connected;
+  const sliderBounds = positionSliderBounds(activeMotor);
+  const sliderTarget = Math.max(
+    sliderBounds.min,
+    Math.min(sliderBounds.max, Number(activeControl?.target) || 0),
+  );
   const rsParamIdNum = parseNum(rsParamId, Number.NaN);
   const selectedRobstrideParam = React.useMemo(
     () => ROBSTRIDE_PARAM_CATALOG.find((x) => Number(x.id) === Number(rsParamIdNum)) || null,
@@ -104,14 +116,72 @@ export function MotorDetailPanel({
   }, [rsAccessFilter, rsSearch]);
   const selectedParamWritable = selectedRobstrideParam ? canRobstrideWrite(selectedRobstrideParam.access) : true;
   const selectedParamTypeSupported = selectedRobstrideParam ? Boolean(toRobstrideCliType(selectedRobstrideParam.dataType)) : true;
-  if (!activeMotor || !activeControl) {
-    return <div className="tip">{t('select_motor_tip')}</div>;
-  }
-
-  const key = motorKey(activeMotor);
+  const key = activeMotor ? motorKey(activeMotor) : '';
   const patch = (field) => (e) => patchControl(key, { [field]: e.target.value });
   const patchNumber = (field) => (e) =>
     patchControl(key, { [field]: parseNum(e.target.value, activeControl?.[field] ?? 0) });
+  React.useEffect(
+    () => () => {
+      if (liveMoveTimerRef.current) clearTimeout(liveMoveTimerRef.current);
+    },
+    [],
+  );
+  React.useEffect(() => {
+    pendingLiveMoveRef.current = null;
+    if (liveMoveTimerRef.current) {
+      clearTimeout(liveMoveTimerRef.current);
+      liveMoveTimerRef.current = null;
+    }
+  }, [key, activeControl?.mode, connected]);
+
+  const scheduleLiveTargetMove = React.useCallback(
+    (targetText) => {
+      if (!liveSliderEnabled || !activeMotor) return;
+      const target = Math.max(sliderBounds.min, Math.min(sliderBounds.max, parseNum(targetText, sliderTarget)));
+      const seq = liveMoveSeqRef.current + 1;
+      liveMoveSeqRef.current = seq;
+      pendingLiveMoveRef.current = {
+        target,
+        previousTarget: activeControl?.target,
+        seq,
+      };
+      if (liveMoveTimerRef.current) return;
+      liveMoveTimerRef.current = setTimeout(async () => {
+        liveMoveTimerRef.current = null;
+        const pending = pendingLiveMoveRef.current;
+        if (!pending) return;
+        const ok = await controlMotor(activeMotor, 'move', { target: pending.target });
+        if (ok || pending.seq !== liveMoveSeqRef.current) return;
+
+        const refreshed = typeof refreshMotorState === 'function' ? await refreshMotorState(activeMotor) : null;
+        const actualPos = Number(refreshed?.pos);
+        patchControl(key, {
+          target: Number.isFinite(actualPos) ? actualPos : pending.previousTarget,
+        });
+      }, 80);
+    },
+    [
+      activeControl?.target,
+      activeMotor,
+      controlMotor,
+      key,
+      liveSliderEnabled,
+      patchControl,
+      refreshMotorState,
+      sliderBounds.max,
+      sliderBounds.min,
+      sliderTarget,
+    ],
+  );
+
+  const onSliderTargetChange = (rawValue) => {
+    const target = parseNum(rawValue, sliderTarget);
+    patchControl(key, { target });
+    scheduleLiveTargetMove(target);
+  };
+  if (!activeMotor || !activeControl) {
+    return <div className="tip">{t('select_motor_tip')}</div>;
+  }
   const commonDamiaoRw = DAMIAO_RW_REGISTER_DEFS.filter((x) => x.common);
   const lessCommonDamiaoRw = DAMIAO_RW_REGISTER_DEFS.filter((x) => !x.common);
 
@@ -213,7 +283,7 @@ export function MotorDetailPanel({
       <div className="grid3 denseGrid">
         <div className="field">
           <label>{t('mode')}</label>
-          <ModeSelect vendor={activeMotor.vendor} value={activeControl.mode} onChange={patch('mode')} />
+          <ModeSelect modes={modeOptions} value={activeControl.mode} onChange={patch('mode')} />
         </div>
         <Field label={t('target')} value={controlInputValue(activeControl.target)} onChange={patchNumber('target')} />
         <Field label={t('vlim')} value={controlInputValue(activeControl.vlim)} onChange={patchNumber('vlim')} />
@@ -223,6 +293,55 @@ export function MotorDetailPanel({
         <Field label={t('ratio')} value={controlInputValue(activeControl.ratio)} onChange={patchNumber('ratio')} />
         <Field label={t('new_esc')} value={controlInputValue(activeControl.newEsc)} onChange={patchNumber('newEsc')} />
         <Field label={t('new_mst')} value={controlInputValue(activeControl.newMst)} onChange={patchNumber('newMst')} />
+      </div>
+      {isRobstridePosVel && (
+        <div className="tip">
+          {t('robstride_pos_vel_tip')}
+        </div>
+      )}
+      <div className="field armSliderWrap">
+        <label>
+          {t('general_target_slider')}: {sliderTarget.toFixed(3)}
+        </label>
+        <input
+          type="range"
+          min={sliderBounds.min}
+          max={sliderBounds.max}
+          step="0.001"
+          value={sliderTarget}
+          disabled={!positionSliderEnabled}
+          onChange={(e) => onSliderTargetChange(e.target.value)}
+        />
+        <div className="armSliderMeta">
+          <span>
+            {t('arm_pos_range_hint')}: {sliderBounds.min.toFixed(2)} .. {sliderBounds.max.toFixed(2)}
+          </span>
+          <input
+            className="armPosInput"
+            value={controlInputValue(activeControl.target)}
+            disabled={!positionSliderEnabled}
+            onChange={(e) => onSliderTargetChange(e.target.value)}
+          />
+        </div>
+        <div className="armSliderMeta">
+          <label className="checkWrap">
+            <input
+              type="checkbox"
+              checked={Boolean(uiPrefs?.generalSliderLiveMove)}
+              disabled={!positionSliderEnabled}
+              onChange={(e) => setUiPref('generalSliderLiveMove', e.target.checked)}
+            />
+            <span>{t('general_live_move')}</span>
+          </label>
+          <span>{liveSliderEnabled ? t('general_live_move_on') : t('general_live_move_off')}</span>
+        </div>
+        <div className="tip">
+          {!positionSliderEnabled
+            ? t('general_target_slider_disabled')
+            : liveSliderEnabled
+              ? t('general_target_slider_live_tip')
+              : t('general_target_slider_tip')}
+        </div>
       </div>
 
       <div className="row toolbar compactToolbar">

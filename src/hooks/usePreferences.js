@@ -10,6 +10,7 @@ export const DEFAULT_UI_PREFS = {
   sectionStateCollapsed: true,
   sectionLogsCollapsed: true,
   armSliderLiveMove: false,
+  generalSliderLiveMove: false,
 };
 
 export function usePreferences() {
