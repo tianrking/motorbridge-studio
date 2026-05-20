@@ -39,11 +39,6 @@ export function mapResponseToHit(h, data, extra = {}) {
   const flags = d.flags && typeof d.flags === 'object' ? d.flags : undefined;
   const isRobstride = String(h?.vendor) === 'robstride';
   const modelPatch = isRobstride ? robstrideModelLimits(h?.model || h?.model_guess) : {};
-  const stateSeq = Number(d.state_seq ?? d.sequence ?? Number.NaN);
-  const previousStateSeq = Number(h.state_seq ?? Number.NaN);
-  const hasStateSeq = Number.isFinite(stateSeq);
-  const isRepeatedState = hasStateSeq && Number.isFinite(previousStateSeq) && stateSeq === previousStateSeq;
-  const updatedAtMs = isRepeatedState ? h.updated_at_ms : Date.now();
   return {
     ...h,
     status: Number(d.status_code ?? h.status ?? Number.NaN),
@@ -58,13 +53,12 @@ export function mapResponseToHit(h, data, extra = {}) {
     can_id: Number(d.can_id ?? h.can_id ?? Number.NaN),
     device_id: Number(d.device_id ?? h.device_id ?? Number.NaN),
     motor_id: Number(d.motor_id ?? h.motor_id ?? Number.NaN),
-    state_seq: hasStateSeq ? stateSeq : h.state_seq,
     flags: flags ?? h.flags,
     ...modelPatch,
     ...extra,
     online: true,
-    last_check_ms: updatedAtMs,
-    updated_at_ms: updatedAtMs,
+    last_check_ms: Date.now(),
+    updated_at_ms: Date.now(),
   };
 }
 
