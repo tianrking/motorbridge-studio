@@ -21,6 +21,7 @@ export const NUMERIC_CONTROL_FIELDS = new Set(['target', 'vlim', 'kp', 'kd', 'ta
 
 export function normalizeControlValue(field, value, fallback = 0) {
   if (!NUMERIC_CONTROL_FIELDS.has(field)) return value;
+  if (typeof value === 'string' && value.trim() === '') return '';
   return parseNum(value, fallback);
 }
 
@@ -33,7 +34,7 @@ export function normalizeControlForHit(hit, rawControl) {
   Object.keys(defaults).forEach((field) => {
     const fallback = defaults[field];
     const value = merged[field];
-    if (value == null || String(value).trim() === '') {
+    if (value == null) {
       merged[field] = fallback;
       return;
     }

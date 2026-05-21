@@ -2,7 +2,7 @@ import React from 'react';
 import { useI18n } from '../../i18n';
 import { useConnectionContext } from '../../hooks/useMotorStudioContext';
 import { modesForVendor } from '../../lib/wsCapabilities';
-import { controlInputValue, parseNum, toHex } from '../../lib/utils';
+import { controlInputValue, toHex } from '../../lib/utils';
 
 function modeDefaultsForRow(row, nextMode) {
   const joint = Number(row?.joint);
@@ -52,7 +52,7 @@ export function JointControlPanel({
   const kdDisabled = mode !== 'mit';
   const patchNumber = (field) => (e) => {
     patchControl(activeRow.key, {
-      [field]: parseNum(e.target.value, activeRow.control?.[field] ?? 0),
+      [field]: e.target.value,
     });
   };
   return (

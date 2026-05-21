@@ -14,6 +14,16 @@ import { buildProbePayload, buildSetIdPayload } from './vendors';
 import { REBOT_ARM_JOINT_LIMITS } from './robotArm';
 
 const lastMitSentAtByMotor = new Map();
+const CONTROL_FIELD_LABELS = Object.freeze({
+  target: 'Target',
+  vlim: 'Vlim',
+  kp: 'KP',
+  kd: 'KD',
+  tau: 'TAU',
+  ratio: 'Ratio',
+  newEsc: 'New ESC',
+  newMst: 'New MST',
+});
 const DAMIAO_REFRESH_REGISTERS = Object.freeze(
   DAMIAO_RW_REGISTER_DEFS.filter((def) => def.common).map((def) => ({
     rid: def.rid,
@@ -28,6 +38,30 @@ function clamp(value, min, max) {
 
 function sleepMs(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function requiredMoveFields(h, mode) {
+  if (mode === 'mit') return ['target', 'kp', 'kd', 'tau'];
+  if (mode === 'vel') return ['target'];
+  if (mode === 'force_pos') return ['target', 'vlim', 'ratio'];
+  if (String(h?.vendor) === 'robstride' && mode === 'pos_vel') return ['target', 'vlim', 'kp'];
+  return ['target', 'vlim'];
+}
+
+export function invalidControlFields(control, fields) {
+  return fields.filter((field) => {
+    const value = control?.[field];
+    if (value == null || String(value).trim() === '') return true;
+    return !Number.isFinite(parseNum(value, Number.NaN));
+  });
+}
+
+function blockInvalidControl(pushLog, prefix, control, fields) {
+  const invalid = invalidControlFields(control, fields);
+  if (invalid.length === 0) return false;
+  const names = invalid.map((field) => CONTROL_FIELD_LABELS[field] || field).join(', ');
+  pushLog(`${prefix} blocked: fill valid numeric value(s) for ${names}`, 'err');
+  return true;
 }
 
 export function modelForHit(h, vendors) {
@@ -266,6 +300,7 @@ export async function setIdForOp({
   pushLog,
 }) {
   const c = controls[motorKey(h)] || defaultControlsForHit(h);
+  if (blockInvalidControl(pushLog, 'set-id', c, ['newEsc', 'newMst'])) return;
   const newEsc = parseNum(c.newEsc, h.esc_id);
   const newMst = parseNum(c.newMst, h.mst_id);
 
@@ -335,6 +370,15 @@ export async function controlMotorOp({
   shouldCancel,
 }) {
   const c = { ...(controls[motorKey(h)] || defaultControlsForHit(h)), ...(controlOverride || {}) };
+  if (
+    action !== 'enable' &&
+    action !== 'disable' &&
+    action !== 'stop' &&
+    action !== 'clear_error' &&
+    blockInvalidControl(pushLog, `move ${h.vendor} ${toHex(h.esc_id)}`, c, requiredMoveFields(h, c.mode))
+  ) {
+    return false;
+  }
   let target = parseNum(c.target, 0);
   const vlim = parseNum(c.vlim, 1);
   let kp = parseNum(c.kp, 30);

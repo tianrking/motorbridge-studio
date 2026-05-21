@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapParamStreamToHit, mapResponseToHit } from './motorStudioOps';
+import { invalidControlFields, mapParamStreamToHit, mapResponseToHit } from './motorStudioOps';
 
 describe('motor studio ops', () => {
   it('unwraps gateway state_once payloads before merging RobStride telemetry', () => {
@@ -84,5 +84,20 @@ describe('motor studio ops', () => {
     expect(next.t_rotor).toBeCloseTo(32);
     expect(next.status).toBe(2);
     expect(next.pmax).toBeCloseTo(12.5);
+  });
+
+  it('flags cleared control fields before commands can be sent', () => {
+    const invalid = invalidControlFields(
+      {
+        target: '',
+        vlim: '1',
+        kp: '',
+        kd: 'bad',
+        tau: '0',
+      },
+      ['target', 'vlim', 'kp', 'kd', 'tau']
+    );
+
+    expect(invalid).toEqual(['target', 'kp', 'kd']);
   });
 });

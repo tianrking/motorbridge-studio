@@ -145,7 +145,7 @@ export function MotorDetailPanel({
   const key = activeMotor ? motorKey(activeMotor) : '';
   const patch = (field) => (e) => patchControl(key, { [field]: e.target.value });
   const patchNumber = (field) => (e) =>
-    patchControl(key, { [field]: parseNum(e.target.value, activeControl?.[field] ?? 0) });
+    patchControl(key, { [field]: e.target.value });
   React.useEffect(
     () => () => {
       if (liveMoveTimerRef.current) clearTimeout(liveMoveTimerRef.current);
