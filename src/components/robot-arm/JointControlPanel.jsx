@@ -32,13 +32,13 @@ export function JointControlPanel({
   limitWarn,
   patchControl,
   onSliderTargetChange,
+  cancelLiveMove,
   jointLimit,
   setUiPref,
   controlMotor,
   refreshMotorState,
-  clampTargetForRow,
-  setLimitWarn,
-  showLimitToast,
+  moveOnce,
+  runExclusive,
 }) {
   const { t } = useI18n();
   const { gatewayCapabilities } = useConnectionContext();
@@ -71,9 +71,10 @@ export function JointControlPanel({
           <label>{t('mode')}</label>
           <select
             value={activeRow.control.mode}
-            onChange={(e) =>
-              patchControl(activeRow.key, modeDefaultsForRow(activeRow, e.target.value))
-            }
+            onChange={(e) => {
+              cancelLiveMove();
+              patchControl(activeRow.key, modeDefaultsForRow(activeRow, e.target.value));
+            }}
           >
             {modeOptions.map((m) => (
               <option key={m} value={m}>
@@ -171,37 +172,25 @@ export function JointControlPanel({
         <button disabled={perJointBusy} onClick={() => controlMotor(activeRow.hit, 'enable')}>
           {t('enable')}
         </button>
-        <button disabled={perJointBusy} onClick={() => controlMotor(activeRow.hit, 'disable')}>
+        <button
+          disabled={perJointBusy}
+          onClick={() => runExclusive(() => controlMotor(activeRow.hit, 'disable'))}
+        >
           {t('disable')}
         </button>
-        <button
-          className="primary"
-          disabled={perJointBusy}
-          onClick={() => {
-            const checked = clampTargetForRow(activeRow, activeRow.control.target);
-            if (checked.clipped) {
-              const msg = t('arm_limit_blocked', {
-                joint: activeRow.joint,
-                req: checked.raw.toFixed(3),
-                min: checked.lim.min.toFixed(3),
-                max: checked.lim.max.toFixed(3),
-                use: checked.clamped.toFixed(3),
-              });
-              setLimitWarn(msg);
-              showLimitToast(msg);
-              patchControl(activeRow.key, { target: checked.clamped });
-            } else {
-              setLimitWarn('');
-            }
-            controlMotor(activeRow.hit, 'move', { target: checked.clamped });
-          }}
-        >
+        <button className="primary" disabled={perJointBusy} onClick={() => moveOnce(activeRow)}>
           {t('move')}
         </button>
-        <button disabled={perJointBusy} onClick={() => controlMotor(activeRow.hit, 'stop')}>
+        <button
+          disabled={perJointBusy}
+          onClick={() => runExclusive(() => controlMotor(activeRow.hit, 'stop'))}
+        >
           {t('stop')}
         </button>
-        <button disabled={perJointBusy} onClick={() => controlMotor(activeRow.hit, 'clear_error')}>
+        <button
+          disabled={perJointBusy}
+          onClick={() => runExclusive(() => controlMotor(activeRow.hit, 'clear_error'))}
+        >
           {t('clear_error')}
         </button>
         <button disabled={perJointBusy} onClick={() => refreshMotorState(activeRow.hit)}>

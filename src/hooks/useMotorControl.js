@@ -145,6 +145,7 @@ export function useMotorControl({
       setControls,
       closeBusQuietly,
       pushLog,
+      shouldCancel: options.shouldCancel,
     });
   };
 

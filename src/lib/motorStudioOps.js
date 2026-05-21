@@ -332,6 +332,7 @@ export async function controlMotorOp({
   setHits,
   setControls,
   pushLog,
+  shouldCancel,
 }) {
   const c = { ...(controls[motorKey(h)] || defaultControlsForHit(h)), ...(controlOverride || {}) };
   let target = parseNum(c.target, 0);
@@ -343,6 +344,7 @@ export async function controlMotorOp({
 
   try {
     await setTargetFor(h.vendor, modelForHit(h, vendors), h.esc_id, h.mst_id);
+    if (typeof shouldCancel === 'function' && shouldCancel()) return false;
 
     if (action === 'enable' || action === 'disable' || action === 'stop' || action === 'clear_error') {
       const ret = await sendCmd(action, { vendor: h.vendor }, CMD_TIMEOUTS.controlMs);
@@ -395,6 +397,7 @@ export async function controlMotorOp({
       payload = { vendor: h.vendor, continuous: false, pos: target, vlim, ratio, ensure_timeout_ms: 2000 };
     }
 
+    if (typeof shouldCancel === 'function' && shouldCancel()) return false;
     const ret = await sendCmd(op, payload, CMD_TIMEOUTS.verifyMs);
     if (!ret.ok) throw new Error(ret.error || `${op} failed`);
 

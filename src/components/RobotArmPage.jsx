@@ -640,13 +640,13 @@ export function RobotArmPage() {
                                         limitWarn={limitWarn}
                                         patchControl={patchControl}
                                         onSliderTargetChange={live.onSliderTargetChange}
+                                        cancelLiveMove={live.cancelLiveMove}
                                         jointLimit={zero.jointLimit}
                                         setUiPref={setUiPref}
                                         controlMotor={controlMotor}
                                         refreshMotorState={refreshMotorState}
-                                        clampTargetForRow={live.clampTargetForRow}
-                                        setLimitWarn={setLimitWarn}
-                                        showLimitToast={showLimitToast}
+                                        moveOnce={live.moveOnce}
+                                        runExclusive={live.runExclusive}
                                       />
 
                                       <ArmSimPanel
